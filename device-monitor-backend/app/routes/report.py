@@ -1,11 +1,27 @@
+import asyncio
+import httpx
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, Literal
 from datetime import datetime, timezone
 from app.models.candidate_session import CandidateSession
 from app.socket_events import sio
+from app.config import settings
 
 router = APIRouter(prefix="/api", tags=["report"])
+
+
+async def _push_bridge_event(payload: dict) -> None:
+    """Fire-and-forget HTTP push to interview-webapp-backend bridge endpoint."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{settings.BRIDGE_URL}/api/device/event",
+                json=payload,
+                headers={"X-Bridge-Key": settings.DEVICE_BRIDGE_KEY},
+            )
+    except Exception:  # noqa: BLE001
+        pass  # Bridge push is best-effort — never crash the main flow
 
 REPORT_TYPES = [
     "full", "quick_update", "usb_event",
@@ -37,7 +53,7 @@ async def handle_report(body: ReportPayload):
             status="online",
         )
         await session.insert()
-        await sio.emit("candidate_update", {"session_id": str(session.id), "status": "online"})
+        await sio.emit("candidate_update", {"session_id": str(session.id), "status": "online"}, room=f"session_{str(session.id)}")
         return {"session_id": str(session.id)}
 
     if not body.session_id:
@@ -58,7 +74,7 @@ async def handle_report(body: ReportPayload):
             "session_id": body.session_id,
             "device": session.device,
             "status": "online",
-        })
+        }, room=f"session_{body.session_id}")
 
     elif body.type == "quick_update":
         if body.running_apps is not None:
@@ -70,7 +86,7 @@ async def handle_report(body: ReportPayload):
         await sio.emit("candidate_update", {
             "session_id": body.session_id,
             "running_apps": body.running_apps,
-        })
+        }, room=f"session_{body.session_id}")
 
     elif body.type == "usb_event":
         if body.usb_event:
@@ -79,7 +95,13 @@ async def handle_report(body: ReportPayload):
         await sio.emit("usb_alert", {
             "session_id": body.session_id,
             "usb_event": body.usb_event,
-        })
+        }, room=f"session_{body.session_id}")
+        asyncio.create_task(_push_bridge_event({
+            "type": "usb_event",
+            "candidate_id": body.session_id,
+            "candidate_name": session.candidate_name,
+            "event": body.usb_event,
+        }))
 
     elif body.type == "wifi_change":
         if body.wifi_event:
@@ -95,5 +117,10 @@ async def handle_report(body: ReportPayload):
             session.close_events.append({**body.close_event, "timestamp": now.isoformat()})
         session.status = "offline"
         await session.save()
+        asyncio.create_task(_push_bridge_event({
+            "type": "app_closed",
+            "candidate_id": body.session_id,
+            "candidate_name": session.candidate_name,
+        }))
 
     return {"ok": True}

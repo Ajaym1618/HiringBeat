@@ -1,4 +1,9 @@
+import logging
 import socketio
+from jose import jwt
+from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Shared AsyncServer instance — imported by main.py and routes that need to emit
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
@@ -9,7 +14,20 @@ _sid_registry: dict[str, str] = {}
 
 @sio.event
 async def connect(sid, environ, auth=None):
-    print(f"[socket] connect: {sid}")
+    token = (auth or {}).get("token") if isinstance(auth, dict) else None
+    if token:
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            user_id = payload.get("user_id")
+            role = payload.get("role")
+            logger.info("[socket] authenticated connect: sid=%s user_id=%s role=%s", sid, user_id, role)
+        except Exception:
+            logger.warning("[socket] rejected unauthenticated connect: sid=%s — invalid token", sid)
+            return False
+    else:
+        # No token provided — allow for backward compatibility (candidate-agent, testing)
+        logger.warning("[socket] connect without auth token: sid=%s", sid)
+    return True
 
 
 @sio.event

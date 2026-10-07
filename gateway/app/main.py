@@ -228,10 +228,13 @@ async def _proxy_websocket(client_ws: WebSocket, target_ws_url: str, service_nam
             async def client_to_backend():
                 try:
                     while True:
-                        data = await client_ws.receive_bytes()
-                        await backend_ws.send(data)
-                except WebSocketDisconnect:
-                    pass
+                        message = await client_ws.receive()
+                        if message["type"] == "websocket.disconnect":
+                            break
+                        if "text" in message and message["text"] is not None:
+                            await backend_ws.send(message["text"])
+                        elif "bytes" in message and message["bytes"] is not None:
+                            await backend_ws.send(message["bytes"])
                 except Exception:  # noqa: BLE001
                     pass
 
@@ -298,6 +301,21 @@ async def device_proxy(path: str, request: Request):
 
 
 # ---------------------------------------------------------------------------
+# Interview Socket.IO HTTP proxy (Engine.IO polling)  /socket.io/{path} -> INTERVIEW_API_URL
+# Must be declared BEFORE the @app.websocket route so HTTP polling is caught first.
+# ---------------------------------------------------------------------------
+@app.api_route(
+    "/socket.io/{path:path}",
+    methods=["GET", "POST", "OPTIONS"],
+    include_in_schema=False,
+)
+async def interview_socketio_http_proxy(path: str, request: Request):
+    """Proxy Engine.IO HTTP polling for interview-webapp-backend."""
+    target = f"{settings.INTERVIEW_API_URL}/socket.io/{path}"
+    return await _proxy_request(request, target, "Interview API")
+
+
+# ---------------------------------------------------------------------------
 # Interview Socket.IO WebSocket proxy   /socket.io/{path} -> INTERVIEW_API_URL
 # ---------------------------------------------------------------------------
 @app.websocket("/socket.io/{path:path}")
@@ -307,6 +325,21 @@ async def interview_ws_proxy(websocket: WebSocket, path: str):
     if qs:
         target_url = f"{target_url}?{qs}"
     await _proxy_websocket(websocket, target_url, "Interview API")
+
+
+# ---------------------------------------------------------------------------
+# Device Monitor Socket.IO HTTP proxy (Engine.IO polling)  /device/socket.io/{path} -> DEVICE_MONITOR_API_URL
+# Must be declared BEFORE the @app.websocket route so HTTP polling is caught first.
+# ---------------------------------------------------------------------------
+@app.api_route(
+    "/device/socket.io/{path:path}",
+    methods=["GET", "POST", "OPTIONS"],
+    include_in_schema=False,
+)
+async def device_socketio_http_proxy(path: str, request: Request):
+    """Proxy Engine.IO HTTP polling for device-monitor-backend."""
+    target = f"{settings.DEVICE_MONITOR_API_URL}/socket.io/{path}"
+    return await _proxy_request(request, target, "Device Monitor API")
 
 
 # ---------------------------------------------------------------------------
