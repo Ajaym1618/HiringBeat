@@ -97,10 +97,9 @@ async def handle_report(body: ReportPayload):
             "usb_event": body.usb_event,
         }, room=f"session_{body.session_id}")
         asyncio.create_task(_push_bridge_event({
-            "type": "usb_event",
             "candidate_id": body.session_id,
-            "candidate_name": session.candidate_name,
-            "event": body.usb_event,
+            "event": "usb_alert",
+            "data": body.usb_event or {},
         }))
 
     elif body.type == "wifi_change":
@@ -118,9 +117,9 @@ async def handle_report(body: ReportPayload):
         session.status = "offline"
         await session.save()
         asyncio.create_task(_push_bridge_event({
-            "type": "app_closed",
             "candidate_id": body.session_id,
-            "candidate_name": session.candidate_name,
+            "event": "status_update",
+            "data": {"status": "offline"},
         }))
 
     return {"ok": True}

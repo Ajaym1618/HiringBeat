@@ -209,3 +209,65 @@ def test_timeout_returns_504():
     body = response.json()
     assert body["success"] is False
     assert body["error"]["code"] == "GATEWAY_TIMEOUT"
+
+
+# ---------------------------------------------------------------------------
+# Socket.IO polling proxy tests
+# ---------------------------------------------------------------------------
+@respx.mock
+def test_socketio_polling_get():
+    respx.get(f"{INTERVIEW_BASE}/socket.io/").mock(
+        return_value=httpx.Response(
+            200,
+            content=b'96:0{"sid":"abc","upgrades":["websocket"],"pingInterval":25000,"pingTimeout":5000}',
+        )
+    )
+    client = TestClient(app)
+    response = client.get("/socket.io/?EIO=4&transport=polling")
+    assert response.status_code == 200
+
+
+@respx.mock
+def test_socketio_polling_post():
+    respx.post(f"{INTERVIEW_BASE}/socket.io/").mock(
+        return_value=httpx.Response(200, content=b"ok")
+    )
+    client = TestClient(app)
+    response = client.post("/socket.io/?EIO=4&transport=polling", content=b"2probe")
+    assert response.status_code == 200
+
+
+@respx.mock
+def test_device_socketio_polling_get():
+    respx.get(f"{DEVICE_BASE}/socket.io/").mock(
+        return_value=httpx.Response(
+            200,
+            content=b'96:0{"sid":"xyz","upgrades":["websocket"],"pingInterval":25000,"pingTimeout":5000}',
+        )
+    )
+    client = TestClient(app)
+    response = client.get("/device/socket.io/?EIO=4&transport=polling")
+    assert response.status_code == 200
+
+
+@respx.mock
+def test_device_socketio_polling_post():
+    respx.post(f"{DEVICE_BASE}/socket.io/").mock(
+        return_value=httpx.Response(200, content=b"ok")
+    )
+    client = TestClient(app)
+    response = client.post("/device/socket.io/?EIO=4&transport=polling", content=b"2probe")
+    assert response.status_code == 200
+
+
+@respx.mock
+def test_socketio_query_params_preserved():
+    respx.get(f"{INTERVIEW_BASE}/socket.io/").mock(
+        return_value=httpx.Response(200, content=b"ok")
+    )
+    client = TestClient(app)
+    client.get("/socket.io/?EIO=4&transport=polling&sid=abc123")
+    called_url = str(respx.calls[0].request.url)
+    assert "EIO=4" in called_url
+    assert "transport=polling" in called_url
+    assert "sid=abc123" in called_url

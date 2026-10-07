@@ -22,7 +22,8 @@ class LinkRequest(BaseModel):
 
 
 class EventPayload(BaseModel):
-    interview_code: str
+    interview_code: Optional[str] = None
+    candidate_id: Optional[str] = None  # device monitor session_id — alternative to interview_code
     event: str
     data: Optional[dict] = None
 
@@ -155,19 +156,32 @@ async def bridge_event(body: EventPayload, x_bridge_key: Optional[str] = Header(
         x_bridge_key.encode(), settings.DEVICE_BRIDGE_KEY.encode()
     ):
         raise HTTPException(status_code=401, detail="Invalid bridge key")
-    interview = await Interview.find_one(Interview.interview_code == body.interview_code)
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
-    link = await DeviceLink.find_one(DeviceLink.interview_id == str(interview.id))
-    if not link:
-        raise HTTPException(status_code=404, detail="No device link")
+
+    # Resolve interview and device link from either interview_code or candidate_id
+    if not body.interview_code and body.candidate_id:
+        # candidate_id is the device monitor session_id stored in DeviceLink.candidate_id
+        link = await DeviceLink.find_one(DeviceLink.candidate_id == body.candidate_id)
+        if not link:
+            raise HTTPException(status_code=404, detail="No device link for candidate session")
+        interview = await Interview.get(link.interview_id)
+        if not interview:
+            raise HTTPException(status_code=404, detail="Interview not found for device link")
+    elif body.interview_code:
+        interview = await Interview.find_one(Interview.interview_code == body.interview_code)
+        if not interview:
+            raise HTTPException(status_code=404, detail="Interview not found")
+        link = await DeviceLink.find_one(DeviceLink.interview_id == str(interview.id))
+        if not link:
+            raise HTTPException(status_code=404, detail="No device link")
+    else:
+        raise HTTPException(status_code=422, detail="interview_code or candidate_id required")
 
     if body.event == "usb_alert":
-        await sio.emit("device_usb_alert", body.data or {}, room=body.interview_code)
+        await sio.emit("device_usb_alert", body.data or {}, room=interview.interview_code)
     elif body.event == "paused":
         link.paused = True
         await link.save()
-        await sio.emit("interview_paused", {"interview_code": body.interview_code}, room=body.interview_code)
+        await sio.emit("interview_paused", {"interview_code": interview.interview_code}, room=interview.interview_code)
     elif body.event == "resume_requested":
         link.resume_requested = True
         await link.save()
