@@ -212,7 +212,7 @@ async def test_join_session_bridge_404():
 
 @pytest.mark.asyncio
 async def test_join_session_bridge_error():
-    """Bridge raising httpx.RequestError must reject the join with unavailability error."""
+    """Bridge raising httpx.RequestError must reject the join with a service-unavailable error message."""
     import httpx
     _authenticated_sids.clear()
     _authenticated_sids["sid_berr"] = {"user_id": "r1", "role": "recruiter", "company_id": "companyA"}
@@ -240,7 +240,16 @@ async def test_join_session_bridge_error():
         MockSession.get = AsyncMock(return_value=fake_session)
         await sio.handlers["/"]["join_session"]("sid_berr", {"session_id": "sess_berr"})
 
-    assert any(e[0] == "error" for e in emitted)
+    # Must emit an error event
+    error_events = [e for e in emitted if e[0] == "error"]
+    assert len(error_events) >= 1, "Expected at least one 'error' event to be emitted"
+
+    # Must contain a specific bridge-unavailable message
+    error_messages = [e[1].get("error", "") for e in error_events]
+    assert any("authorization service unavailable" in msg.lower() or "unavailable" in msg.lower() for msg in error_messages), (
+        f"Expected bridge-unavailable message, got: {error_messages}"
+    )
+
     assert entered_rooms == []
     _authenticated_sids.clear()
 
