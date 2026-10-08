@@ -191,3 +191,34 @@ async def bridge_event(body: EventPayload, x_bridge_key: Optional[str] = Header(
             link.status = status_val
             await link.save()
     return {"received": True}
+
+
+@router.get("/session-company/{session_id}")
+async def get_session_company(
+    session_id: str,
+    x_bridge_key: Optional[str] = Header(None),
+):
+    """Resolve session_id → DeviceLink → Interview → company_id / interview_code.
+
+    Protected by X-Bridge-Key (same as POST /api/device/event).
+    Used by device-monitor-backend to verify cross-company access before admitting
+    a recruiter to a Socket.IO monitoring room.
+    """
+    if not x_bridge_key or not hmac.compare_digest(
+        x_bridge_key.encode(), settings.DEVICE_BRIDGE_KEY.encode()
+    ):
+        raise HTTPException(status_code=401, detail="Invalid bridge key")
+
+    # session_id in device-monitor is stored as DeviceLink.candidate_id
+    link = await DeviceLink.find_one(DeviceLink.candidate_id == session_id)
+    if not link:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    interview = await Interview.get(link.interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    return {
+        "company_id": str(interview.company_id),
+        "interview_code": interview.interview_code,
+    }

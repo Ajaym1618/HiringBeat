@@ -106,6 +106,9 @@ async def join_room(sid, data):
 async def leave_room(sid, data):
     code = data.get("interview_code") if isinstance(data, dict) else None
     if code:
+        # Only leave the room if this sid is actually registered to it
+        if _sid_registry.get(sid) != code:
+            return
         await sio.leave_room(sid, code)
         _sid_registry.pop(sid, None)
 
@@ -114,6 +117,11 @@ async def leave_room(sid, data):
 async def candidate_ready(sid, data):
     if sid not in _authenticated_sids:
         logger.warning("[socket] unauthenticated event from sid=%s", sid)
+        return
+    user_info = _authenticated_sids[sid]
+    if user_info.get("role") != "candidate":
+        logger.warning("[socket] candidate_ready rejected: non-candidate role=%s sid=%s", user_info.get("role"), sid)
+        await sio.emit("error", {"error": "only candidates may send this event"}, to=sid)
         return
     code = _sid_registry.get(sid)
     if code:
@@ -125,6 +133,11 @@ async def phone_ready(sid, data):
     if sid not in _authenticated_sids:
         logger.warning("[socket] unauthenticated event from sid=%s", sid)
         return
+    user_info = _authenticated_sids[sid]
+    if user_info.get("role") != "candidate":
+        logger.warning("[socket] phone_ready rejected: non-candidate role=%s sid=%s", user_info.get("role"), sid)
+        await sio.emit("error", {"error": "only candidates may send this event"}, to=sid)
+        return
     code = _sid_registry.get(sid)
     if code:
         await sio.emit("phone_ready", data, room=code, skip_sid=sid)
@@ -135,9 +148,16 @@ async def recruiter_present(sid, data):
     if sid not in _authenticated_sids:
         logger.warning("[socket] unauthenticated event from sid=%s", sid)
         return
+    user_info = _authenticated_sids[sid]
+    if user_info.get("role") not in ("recruiter", "company_manager", "super_admin"):
+        logger.warning("[socket] recruiter_present rejected: role=%s sid=%s", user_info.get("role"), sid)
+        await sio.emit("error", {"error": "not authorized"}, to=sid)
+        return
     code = _sid_registry.get(sid)
-    if code:
-        await sio.emit("recruiter_present", data, room=code, skip_sid=sid)
+    if not code:
+        await sio.emit("error", {"error": "not in a room"}, to=sid)
+        return
+    await sio.emit("recruiter_present", data, room=code, skip_sid=sid)
 
 
 @sio.event
@@ -185,9 +205,16 @@ async def interview_started(sid, data):
     if sid not in _authenticated_sids:
         logger.warning("[socket] unauthenticated event from sid=%s", sid)
         return
+    user_info = _authenticated_sids[sid]
+    if user_info.get("role") not in ("recruiter", "super_admin"):
+        logger.warning("[socket] interview_started rejected: role=%s sid=%s", user_info.get("role"), sid)
+        await sio.emit("error", {"error": "only recruiters may control the interview"}, to=sid)
+        return
     code = _sid_registry.get(sid)
-    if code:
-        await sio.emit("interview_started", data, room=code)
+    if not code:
+        await sio.emit("error", {"error": "not in a room"}, to=sid)
+        return
+    await sio.emit("interview_started", data, room=code)
 
 
 @sio.event
@@ -195,6 +222,13 @@ async def interview_ended(sid, data):
     if sid not in _authenticated_sids:
         logger.warning("[socket] unauthenticated event from sid=%s", sid)
         return
+    user_info = _authenticated_sids[sid]
+    if user_info.get("role") not in ("recruiter", "super_admin"):
+        logger.warning("[socket] interview_ended rejected: role=%s sid=%s", user_info.get("role"), sid)
+        await sio.emit("error", {"error": "only recruiters may control the interview"}, to=sid)
+        return
     code = _sid_registry.get(sid)
-    if code:
-        await sio.emit("interview_ended", data, room=code)
+    if not code:
+        await sio.emit("error", {"error": "not in a room"}, to=sid)
+        return
+    await sio.emit("interview_ended", data, room=code)

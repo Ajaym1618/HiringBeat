@@ -1,5 +1,6 @@
 import logging
 import socketio
+import httpx
 from jose import jwt
 from app.config import settings
 from app.models.candidate_session import CandidateSession
@@ -25,7 +26,11 @@ async def connect(sid, environ, auth=None):
         if user_id is None:
             logger.warning("[device-monitor socket] rejected connect: no user_id in token, sid=%s", sid)
             return False
-        _authenticated_sids[sid] = {"user_id": user_id, "role": role}
+        _authenticated_sids[sid] = {
+            "user_id": user_id,
+            "role": role,
+            "company_id": payload.get("company_id"),
+        }
         logger.info("[device-monitor socket] authenticated connect: sid=%s user_id=%s role=%s", sid, user_id, role)
         return True
     except Exception:
@@ -48,12 +53,10 @@ async def join_session(sid, data):
         return
 
     user_info = _authenticated_sids[sid]
+    role = user_info.get("role")
 
     # Only recruiters, company managers, and super admins may monitor sessions
-    # NOTE: CandidateSession has no company_id field, so cross-company isolation
-    # cannot be enforced at this layer. A valid recruiter/company_manager JWT is
-    # sufficient authorization until a company mapping is added to CandidateSession.
-    if user_info.get("role") not in ("recruiter", "company_manager", "super_admin"):
+    if role not in ("recruiter", "company_manager", "super_admin"):
         await sio.emit("error", {"error": "not authorized to monitor sessions"}, to=sid)
         return
 
@@ -67,6 +70,33 @@ async def join_session(sid, data):
     if session is None:
         await sio.emit("error", {"error": "session not found"}, to=sid)
         return
+
+    # Cross-company isolation: verify this session belongs to the user's company
+    # via the Interview API bridge (session → DeviceLink → Interview → company_id)
+    if role != "super_admin":
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    f"{settings.BRIDGE_URL}/api/device/session-company/{session_id}",
+                    headers={"X-Bridge-Key": settings.DEVICE_BRIDGE_KEY},
+                )
+            if resp.status_code == 404:
+                await sio.emit("error", {"error": "session not found or not linked to an interview"}, to=sid)
+                return
+            if resp.status_code != 200:
+                await sio.emit("error", {"error": "authorization check failed"}, to=sid)
+                return
+            session_company = resp.json()
+            if str(session_company.get("company_id")) != str(user_info.get("company_id")):
+                logger.warning(
+                    "[device-monitor socket] cross-company join rejected: sid=%s user_company=%s session_company=%s",
+                    sid, user_info.get("company_id"), session_company.get("company_id"),
+                )
+                await sio.emit("error", {"error": "not authorized for this session"}, to=sid)
+                return
+        except httpx.RequestError:
+            await sio.emit("error", {"error": "authorization service unavailable"}, to=sid)
+            return
 
     await sio.enter_room(sid, f"session_{session_id}")
     await sio.emit("session_joined", {"session_id": session_id}, to=sid)

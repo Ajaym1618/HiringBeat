@@ -54,7 +54,10 @@ async def login(request: Request, body: LoginRequest):
             if company and company.status != "active":
                 raise HTTPException(status_code=403, detail="Company is inactive")
 
-    token = create_access_token({"user_id": str(user.id), "role": user.role})
+    token_data: dict = {"user_id": str(user.id), "role": user.role}
+    if user.company_id:
+        token_data["company_id"] = str(user.company_id)
+    token = create_access_token(token_data)
     return TokenResponse(
         access_token=token,
         role=user.role,
