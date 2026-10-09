@@ -12,7 +12,7 @@ from app.core.permissions import (
 )
 from app.models.user import User
 from app.models.company import Company
-from app.core.subscription import effective_interview_limit, enforce_interview_limit
+from app.core.subscription import enforce_interview_limit
 from app.socket_events import sio
 from bson.errors import InvalidId
 from datetime import datetime, timezone
@@ -52,22 +52,8 @@ async def create_interview(
     if not company:
         raise HTTPException(status_code=403, detail="Company not found")
 
-    # Use new plan-based enforcement if subscription_plan_id is set; fall back to legacy
-    if company.subscription_plan_id:
-        await enforce_interview_limit(company)
-    else:
-        # Legacy path: still check org is approved before allowing interview creation
-        from app.core.subscription import check_org_approved
-        await check_org_approved(company)
-        limit = effective_interview_limit(company.interview_limit, company.subscription_expires_at)
-        active_count = await Interview.find(
-            {
-                "company_id": current_user.company_id,
-                "status": {"$in": ["scheduled", "active"]},
-            }
-        ).count()
-        if active_count >= limit:
-            raise HTTPException(status_code=403, detail="SUBSCRIPTION_LIMIT_EXCEEDED")
+    # Use new plan-based enforcement — no legacy fallback allowed
+    await enforce_interview_limit(company)
 
     code = secrets.token_hex(4).upper()  # 8-char hex
     interview = Interview(
@@ -101,14 +87,30 @@ async def get_by_code(
     code: str,
     current_user: Optional[User] = Depends(_get_optional_user),
 ):
-    """Look up an interview by code. Optionally associates a candidate_id when authenticated."""
+    """Look up an interview by code. Securely associates candidate_id when authenticated."""
     interview = await Interview.find_one(Interview.interview_code == code)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
 
-    # GAP 9: if a candidate is authenticated, associate them with this interview
+    # Secure candidate association — only associate if:
+    # 1. user is authenticated as a candidate
+    # 2. interview has no existing candidate_id (don't overwrite)
+    # 3. candidate's email matches interview.candidate_email (or no email was pre-assigned)
     if current_user and current_user.role == "candidate":
-        if interview.candidate_id != str(current_user.id):
+        if interview.candidate_id and interview.candidate_id != str(current_user.id):
+            # Interview already claimed by a different candidate
+            raise HTTPException(
+                status_code=403,
+                detail="This interview is assigned to a different candidate",
+            )
+        if not interview.candidate_id:
+            # Only associate if email matches (when a specific candidate was pre-assigned)
+            if interview.candidate_email and interview.candidate_email != current_user.email:
+                raise HTTPException(
+                    status_code=403,
+                    detail="This interview is not assigned to your account",
+                )
+            # Safe to associate
             interview.candidate_id = str(current_user.id)
             await interview.save()
 

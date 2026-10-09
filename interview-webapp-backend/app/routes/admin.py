@@ -383,9 +383,28 @@ async def approve_org(
     company_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Approve a pending organization. Idempotent — safe to call on already-approved orgs."""
+    """Approve a pending organization. Checks required documents first."""
     require_super_admin(current_user)
     company = await get_company_or_404(company_id)
+
+    # Required documents that MUST be uploaded before approval
+    REQUIRED_DOC_TYPES = {
+        "certificate_of_incorporation",
+        "pan_document",
+        "address_proof",
+        "authorized_person_id",
+    }
+    # gst_certificate and authorization_letter are conditional/optional
+
+    uploaded_docs = await OrgDocument.find({"company_id": company_id}).to_list()
+    uploaded_types = {d.document_type for d in uploaded_docs}
+    missing = REQUIRED_DOC_TYPES - uploaded_types
+
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Cannot approve: missing required documents: {', '.join(sorted(missing))}",
+        )
 
     # Idempotent: only call set() if not already active
     if company.status != "active":
@@ -395,7 +414,6 @@ async def approve_org(
             "verified_at": datetime.now(timezone.utc),
             "verified_by": str(current_user.id),
         })
-        # sync() re-fetches the document so _company_out reflects the stored state
         await company.sync()
 
     return _company_out(company)

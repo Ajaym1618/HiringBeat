@@ -557,11 +557,18 @@ async def test_super_admin_can_list_pending_orgs():
 @pytest.mark.asyncio
 async def test_super_admin_can_verify_org():
     from app.routes.admin import approve_org
+    from app.models.org_document import OrgDocument as OrgDocModel
 
     admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
     pending = FakeCompany(company_id="comp_v", status="pending_verification", verification_status="pending")
 
-    with patch("app.routes.admin.get_company_or_404", new_callable=AsyncMock, return_value=pending):
+    # Create fake docs covering all required types
+    required_types = ["certificate_of_incorporation", "pan_document", "address_proof", "authorized_person_id"]
+    fake_docs = [MagicMock(document_type=dt) for dt in required_types]
+    doc_qm = _make_query_mock(results=fake_docs)
+
+    with patch("app.routes.admin.get_company_or_404", new_callable=AsyncMock, return_value=pending), \
+         patch.object(OrgDocModel, "find", return_value=doc_qm, create=True):
         result = await approve_org(company_id="comp_v", current_user=admin_user)
 
     assert result["status"] == "active"
@@ -739,13 +746,22 @@ async def test_verified_org_login_allowed():
 
 @pytest.mark.asyncio
 async def test_recruiter_limit_enforced_returns_403():
-    """Adding a team member when the seat limit is reached must return HTTP 403 SEAT_LIMIT_EXCEEDED."""
+    """Adding a team member when the recruiter limit is reached must return HTTP 409."""
     from app.routes.company import add_team_member
     from app.schemas.admin import CreateRecruiterRequest
+    from app.models.subscription_plan import SubscriptionPlan as SPModel
     from fastapi import HTTPException
 
     mgr_user = FakeUser(role="company_manager", company_id="comp1")
-    company = FakeCompany(company_id="comp1", seat_limit=2)
+    # Company with subscription plan set and approved
+    company = FakeCompany(company_id="comp1", verification_status="approved")
+    company.subscription_plan_id = "plan1"
+    company.subscription_status = "active"
+    company.subscription_expires_at = None
+
+    fake_plan = MagicMock()
+    fake_plan.max_recruiters = 2
+    fake_plan.max_admins = 3
 
     body = CreateRecruiterRequest(
         email="extra@corp.com",
@@ -758,23 +774,32 @@ async def test_recruiter_limit_enforced_returns_403():
     qm = _make_query_mock(count=2)
 
     with patch("app.routes.company.Company.get", new_callable=AsyncMock, return_value=company), \
-         patch.object(UserModel, "find", return_value=qm, create=True):
+         patch.object(UserModel, "find", return_value=qm, create=True), \
+         patch.object(SPModel, "get", new_callable=AsyncMock, return_value=fake_plan):
         with pytest.raises(HTTPException) as exc_info:
             await add_team_member(body=body, current_user=mgr_user)
 
-    assert exc_info.value.status_code == 403
-    assert "SEAT_LIMIT_EXCEEDED" in exc_info.value.detail
+    assert exc_info.value.status_code == 409
+    assert "Recruiter limit" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
 async def test_admin_limit_enforced_returns_403():
-    """Managers count against the seat limit just like recruiters."""
+    """Admin limit enforced — returns HTTP 409 when at max_admins."""
     from app.routes.company import add_team_member
     from app.schemas.admin import CreateRecruiterRequest
+    from app.models.subscription_plan import SubscriptionPlan as SPModel
     from fastapi import HTTPException
 
     mgr_user = FakeUser(role="company_manager", company_id="comp1")
-    company = FakeCompany(company_id="comp1", seat_limit=3)
+    company = FakeCompany(company_id="comp1", verification_status="approved")
+    company.subscription_plan_id = "plan1"
+    company.subscription_status = "active"
+    company.subscription_expires_at = None
+
+    fake_plan = MagicMock()
+    fake_plan.max_admins = 1
+    fake_plan.max_recruiters = 5
 
     body = CreateRecruiterRequest(
         email="mgr2@corp.com",
@@ -784,15 +809,16 @@ async def test_admin_limit_enforced_returns_403():
         company_id="comp1",
     )
 
-    qm = _make_query_mock(count=3)
+    qm = _make_query_mock(count=1)
 
     with patch("app.routes.company.Company.get", new_callable=AsyncMock, return_value=company), \
-         patch.object(UserModel, "find", return_value=qm, create=True):
+         patch.object(UserModel, "find", return_value=qm, create=True), \
+         patch.object(SPModel, "get", new_callable=AsyncMock, return_value=fake_plan):
         with pytest.raises(HTTPException) as exc_info:
             await add_team_member(body=body, current_user=mgr_user)
 
-    assert exc_info.value.status_code == 403
-    assert "SEAT_LIMIT_EXCEEDED" in exc_info.value.detail
+    assert exc_info.value.status_code == 409
+    assert "Admin limit" in exc_info.value.detail
 
 
 # ---------------------------------------------------------------------------
@@ -801,25 +827,33 @@ async def test_admin_limit_enforced_returns_403():
 
 @pytest.mark.asyncio
 async def test_interview_limit_enforced_returns_403():
-    """Creating an interview when the limit is reached must return HTTP 403 SUBSCRIPTION_LIMIT_EXCEEDED."""
+    """Creating an interview when the limit is reached must return HTTP 409."""
     from app.routes.interviews import create_interview
     from app.schemas.interview import CreateInterviewRequest
+    from app.models.subscription_plan import SubscriptionPlan as SPModel
     from fastapi import HTTPException
 
     recruiter = FakeUser(user_id="rec1", role="recruiter", company_id="comp1")
-    company = FakeCompany(company_id="comp1", interview_limit=5)
+    company = FakeCompany(company_id="comp1", verification_status="approved")
+    company.subscription_plan_id = "plan1"
+    company.subscription_status = "active"
+    company.subscription_expires_at = None
+
+    fake_plan = MagicMock()
+    fake_plan.max_interviews = 5
 
     body = CreateInterviewRequest(title="Interview Overflow")
 
     qm = _make_query_mock(count=5)
 
     with patch("app.routes.interviews.Company.get", new_callable=AsyncMock, return_value=company), \
-         patch.object(InterviewModel, "find", return_value=qm, create=True):
+         patch.object(InterviewModel, "find", return_value=qm, create=True), \
+         patch.object(SPModel, "get", new_callable=AsyncMock, return_value=fake_plan):
         with pytest.raises(HTTPException) as exc_info:
             await create_interview(body=body, current_user=recruiter)
 
-    assert exc_info.value.status_code == 403
-    assert "SUBSCRIPTION_LIMIT_EXCEEDED" in exc_info.value.detail
+    assert exc_info.value.status_code == 409
+    assert "Interview limit" in exc_info.value.detail
 
 
 # ---------------------------------------------------------------------------
@@ -964,7 +998,6 @@ async def test_get_team_seat_usage():
     assert "members" in result
     assert "seat_usage" in result
     assert result["seat_usage"]["used"] == 2
-    assert result["seat_usage"]["limit"] == 5
 
 
 @pytest.mark.asyncio
@@ -1680,3 +1713,211 @@ async def test_patch_subscription_with_plan_id():
 
     assert result["subscription_plan_id"] == "plan_basic"
     assert result["subscription_status"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# FIX 2: Secure candidate-to-interview association
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_candidate_cannot_claim_another_candidates_interview():
+    """A candidate must not be able to claim an interview already assigned to someone else."""
+    from app.routes.interviews import get_by_code
+    from fastapi import HTTPException
+
+    candidate = FakeUser(user_id="cand_new", role="candidate", email="new@test.com")
+    interview = FakeInterview(
+        interview_id="iv_taken",
+        interview_code="TAKEN001",
+        candidate_id="cand_existing",  # already claimed
+    )
+
+    with patch.object(InterviewModel, "find_one", new_callable=AsyncMock, return_value=interview, create=True), \
+         patch.object(InterviewModel, "interview_code", new=MagicMock(), create=True):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_by_code(code="TAKEN001", current_user=candidate)
+
+    assert exc_info.value.status_code == 403
+    assert "different candidate" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_candidate_cannot_claim_interview_assigned_to_different_email():
+    """A candidate must not claim an interview pre-assigned to a different email."""
+    from app.routes.interviews import get_by_code
+    from fastapi import HTTPException
+
+    candidate = FakeUser(user_id="cand_wrong", role="candidate", email="wrong@test.com")
+    interview = FakeInterview(
+        interview_id="iv_email",
+        interview_code="EMAIL001",
+        candidate_email="correct@test.com",  # different email
+        candidate_id=None,
+    )
+
+    with patch.object(InterviewModel, "find_one", new_callable=AsyncMock, return_value=interview, create=True), \
+         patch.object(InterviewModel, "interview_code", new=MagicMock(), create=True):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_by_code(code="EMAIL001", current_user=candidate)
+
+    assert exc_info.value.status_code == 403
+    assert "not assigned to your account" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_candidate_can_claim_unassigned_interview():
+    """A candidate can claim an interview with no pre-assigned email or candidate_id."""
+    from app.routes.interviews import get_by_code
+
+    candidate = FakeUser(user_id="cand_free", role="candidate", email="free@test.com")
+    interview = FakeInterview(
+        interview_id="iv_free",
+        interview_code="FREE001",
+        candidate_email=None,
+        candidate_id=None,
+    )
+    interview.save = AsyncMock()
+
+    with patch.object(InterviewModel, "find_one", new_callable=AsyncMock, return_value=interview, create=True), \
+         patch.object(InterviewModel, "interview_code", new=MagicMock(), create=True):
+        result = await get_by_code(code="FREE001", current_user=candidate)
+
+    assert result["interview_code"] == "FREE001"
+    interview.save.assert_called_once()
+    assert interview.candidate_id == "cand_free"
+
+
+# ---------------------------------------------------------------------------
+# FIX 3: Required documents before approval
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_super_admin_cannot_approve_without_required_documents():
+    """Approval must fail with 422 when required documents are missing."""
+    from app.routes.admin import approve_org
+    from app.models.org_document import OrgDocument as OrgDocModel
+    from fastapi import HTTPException
+
+    admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
+    pending = FakeCompany(company_id="comp_nodoc", status="pending_verification", verification_status="pending")
+
+    # Only one doc uploaded — missing the other required types
+    fake_docs = [MagicMock(document_type="pan_document")]
+    doc_qm = _make_query_mock(results=fake_docs)
+
+    with patch("app.routes.admin.get_company_or_404", new_callable=AsyncMock, return_value=pending), \
+         patch.object(OrgDocModel, "find", return_value=doc_qm, create=True):
+        with pytest.raises(HTTPException) as exc_info:
+            await approve_org(company_id="comp_nodoc", current_user=admin_user)
+
+    assert exc_info.value.status_code == 422
+    assert "missing required documents" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_super_admin_cannot_approve_with_zero_documents():
+    """Approval must fail when no documents have been uploaded at all."""
+    from app.routes.admin import approve_org
+    from app.models.org_document import OrgDocument as OrgDocModel
+    from fastapi import HTTPException
+
+    admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
+    pending = FakeCompany(company_id="comp_empty", status="pending_verification", verification_status="pending")
+
+    doc_qm = _make_query_mock(results=[])
+
+    with patch("app.routes.admin.get_company_or_404", new_callable=AsyncMock, return_value=pending), \
+         patch.object(OrgDocModel, "find", return_value=doc_qm, create=True):
+        with pytest.raises(HTTPException) as exc_info:
+            await approve_org(company_id="comp_empty", current_user=admin_user)
+
+    assert exc_info.value.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# FIX 1: Verified org without subscription cannot create interviews
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_verified_org_without_subscription_cannot_create_interview():
+    """Approved org with no subscription_plan_id must be blocked from creating interviews."""
+    from app.routes.interviews import create_interview
+    from app.schemas.interview import CreateInterviewRequest
+    from fastapi import HTTPException
+
+    recruiter = FakeUser(user_id="rec1", role="recruiter", company_id="comp_nosub")
+    # Approved but no subscription
+    company = FakeCompany(company_id="comp_nosub", verification_status="approved")
+    company.subscription_plan_id = None
+    company.subscription_status = "inactive"
+
+    body = CreateInterviewRequest(title="Test Interview")
+
+    with patch("app.routes.interviews.Company.get", new_callable=AsyncMock, return_value=company):
+        with pytest.raises(HTTPException) as exc_info:
+            await create_interview(body=body, current_user=recruiter)
+
+    assert exc_info.value.status_code == 403
+    assert "subscription" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_expired_subscription_blocks_interview_creation():
+    """Expired subscription must block interview creation."""
+    from app.routes.interviews import create_interview
+    from app.schemas.interview import CreateInterviewRequest
+    from app.models.subscription_plan import SubscriptionPlan as SPModel
+    from fastapi import HTTPException
+    from datetime import timedelta
+
+    recruiter = FakeUser(user_id="rec1", role="recruiter", company_id="comp_exp")
+    company = FakeCompany(company_id="comp_exp", verification_status="approved")
+    company.subscription_plan_id = "plan1"
+    company.subscription_status = "active"
+    company.subscription_expires_at = datetime.now(timezone.utc) - timedelta(days=1)  # expired
+
+    fake_plan = MagicMock()
+    fake_plan.max_interviews = 100
+
+    body = CreateInterviewRequest(title="Blocked Interview")
+
+    with patch("app.routes.interviews.Company.get", new_callable=AsyncMock, return_value=company), \
+         patch.object(SPModel, "get", new_callable=AsyncMock, return_value=fake_plan):
+        with pytest.raises(HTTPException) as exc_info:
+            await create_interview(body=body, current_user=recruiter)
+
+    assert exc_info.value.status_code == 403
+    assert "expired" in exc_info.value.detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# FIX 4: Upload cleanup on failure — magic bytes rejection
+# ---------------------------------------------------------------------------
+
+def test_validate_magic_bytes_rejects_non_pdf():
+    """A file with wrong magic bytes must be rejected even if extension is .pdf."""
+    from app.routes.org import _validate_magic_bytes
+    from fastapi import HTTPException
+
+    fake_content = b"This is not a PDF file at all"
+    with pytest.raises(HTTPException) as exc_info:
+        _validate_magic_bytes(fake_content, "fake.pdf")
+
+    assert exc_info.value.status_code == 422
+    assert "content does not match" in exc_info.value.detail.lower()
+
+
+def test_validate_magic_bytes_accepts_valid_pdf():
+    """A file starting with %PDF must pass magic bytes check."""
+    from app.routes.org import _validate_magic_bytes
+
+    pdf_content = b"%PDF-1.4 fake pdf content"
+    _validate_magic_bytes(pdf_content, "real.pdf")  # should not raise
+
+
+def test_validate_magic_bytes_accepts_jpeg():
+    """A JPEG file must pass magic bytes check."""
+    from app.routes.org import _validate_magic_bytes
+
+    jpeg_content = b"\xff\xd8\xff\xe0 fake jpeg content"
+    _validate_magic_bytes(jpeg_content, "image.jpg")  # should not raise

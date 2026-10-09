@@ -6,7 +6,6 @@ from app.schemas.org import UpdateRoleRequest
 from app.core.auth import get_current_user, hash_password
 from app.core.permissions import require_company_manager
 from app.core.subscription import (
-    effective_seat_limit, FREE_SEAT_LIMIT,
     enforce_recruiter_limit, enforce_admin_limit,
 )
 from bson.errors import InvalidId
@@ -40,22 +39,23 @@ async def get_team(
     ]
 
     if not include_usage:
-        # Backward-compatible: return bare list (existing behaviour, FIX 4)
+        # Backward-compatible: return bare list
         return member_list
 
-    # include_usage=true: return wrapped response with seat_usage (FR-7.1 / AC-16)
+    # include_usage=true: return wrapped response with subscription usage
     try:
         company = await Company.get(current_user.company_id)
     except Exception:
         company = None
-    limit = (
-        effective_seat_limit(company.seat_limit, company.subscription_expires_at)
-        if company
-        else FREE_SEAT_LIMIT
-    )
+    from app.core.subscription import get_subscription_usage
+    usage = await get_subscription_usage(company) if company else {}
     return {
         "members": member_list,
-        "seat_usage": {"used": len(members), "limit": limit},
+        "seat_usage": {
+            "used": len(members),
+            "admins_limit": usage.get("admins_limit", 0),
+            "recruiters_limit": usage.get("recruiters_limit", 0),
+        },
     }
 
 
@@ -78,19 +78,11 @@ async def add_team_member(
     if company.status not in ("active",):
         raise HTTPException(status_code=403, detail="Company is not active")
 
-    # Use new per-role enforcement if a subscription plan is set; fall back to legacy seat_limit
-    if company.subscription_plan_id:
-        if body.role == "recruiter":
-            await enforce_recruiter_limit(company)
-        else:
-            await enforce_admin_limit(company)
+    # Use new per-role enforcement — no legacy fallback
+    if body.role == "recruiter":
+        await enforce_recruiter_limit(company)
     else:
-        limit = effective_seat_limit(company.seat_limit, company.subscription_expires_at)
-        used = await User.find(
-            {"company_id": current_user.company_id, "role": {"$in": ["recruiter", "company_manager"]}}
-        ).count()
-        if used >= limit:
-            raise HTTPException(status_code=403, detail="SEAT_LIMIT_EXCEEDED")
+        await enforce_admin_limit(company)
 
     existing = await User.find_one(User.email == body.email)
     if existing:
