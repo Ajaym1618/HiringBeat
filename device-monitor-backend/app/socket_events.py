@@ -26,6 +26,10 @@ async def connect(sid, environ, auth=None):
         if user_id is None:
             logger.warning("[device-monitor socket] rejected connect: no user_id in token, sid=%s", sid)
             return False
+        # NOTE: company_id is read from the JWT payload, not a live DB lookup.
+        # If a recruiter is reassigned to a different company, their existing token
+        # retains the old company_id until expiry (default 24h).
+        # See README for mitigation options.
         _authenticated_sids[sid] = {
             "user_id": user_id,
             "role": role,

@@ -1,7 +1,7 @@
 """
 Reusable field validators — import and use in any schema.
 
-Usage:
+Usage (Pydantic v2 — requires classmethod() and mode='before'):
     from app.schemas.validators import validate_email, validate_password, validate_name
 
     class MySchema(BaseModel):
@@ -9,9 +9,9 @@ Usage:
         password: str
         name: str
 
-        _validate_email = field_validator("email")(validate_email)
-        _validate_password = field_validator("password")(validate_password)
-        _validate_name = field_validator("name")(validate_name)
+        _validate_email = field_validator("email", mode="before")(classmethod(validate_email))
+        _validate_password = field_validator("password", mode="before")(classmethod(validate_password))
+        _validate_name = field_validator("name", mode="before")(classmethod(validate_name))
 """
 
 import re
@@ -52,3 +52,12 @@ def validate_optional_email(cls, v: str) -> str:
     if not re.match(EMAIL_REGEX, v.strip()):
         raise ValueError("Invalid email address")
     return v.strip().lower()
+
+
+def validate_org_name(cls, v: str) -> str:
+    """Validate organization name length and presence."""
+    if not v or len(v.strip()) < 2:
+        raise ValueError("Organization name must be at least 2 characters")
+    if len(v.strip()) > 100:
+        raise ValueError("Organization name must be 100 characters or less")
+    return v.strip()

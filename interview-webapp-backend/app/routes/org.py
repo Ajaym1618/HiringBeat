@@ -1,5 +1,6 @@
 import os
 import re as _re
+import uuid
 import aiofiles
 from fastapi import APIRouter, HTTPException, status, Request, Depends, UploadFile, File, Form
 from typing import List
@@ -95,7 +96,9 @@ async def register_org(request: Request, body: OrgRegisterRequest):
 
 
 @router.post("/{company_id}/documents", status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/hour")
 async def upload_org_documents(
+    request: Request,
     company_id: str,
     documents: List[UploadFile] = File(...),
     document_types: str = Form(...),
@@ -126,16 +129,17 @@ async def upload_org_documents(
         if dt not in VALID_DOC_TYPES:
             raise HTTPException(status_code=422, detail=f"Invalid document_type: {dt}")
 
-    # Validate files (MIME type, extension, size)
+    # Validate files (MIME type OR extension must be allowed, size limit)
     file_contents = []
     for f in documents:
         ext = os.path.splitext(f.filename or "")[1].lower()
         content_type = (f.content_type or "").lower()
-        if content_type not in ALLOWED_MIME_TYPES and ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(status_code=422, detail=f"File type not allowed: {f.filename}")
+        # FIX 6: use OR — reject if EITHER content_type OR extension is not allowed
+        if content_type not in ALLOWED_MIME_TYPES or ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=422, detail=f"File type not allowed: {f.filename}. Allowed: pdf, jpg, jpeg, png")
         content = await f.read()
         if len(content) > MAX_FILE_SIZE_BYTES:
-            raise HTTPException(status_code=413, detail=f"File too large: {f.filename}")
+            raise HTTPException(status_code=413, detail=f"File too large: {f.filename} (max 10MB)")
         file_contents.append(content)
 
     # Save files and create OrgDocument records
@@ -144,14 +148,16 @@ async def upload_org_documents(
 
     created = []
     for f, dt, content in zip(documents, doc_types, file_contents):
-        safe_name = f"{dt}_{f.filename}"
+        # FIX 2: UUID-based filename to prevent path traversal via user-supplied filename
+        ext = os.path.splitext(f.filename or "")[1].lower()
+        safe_name = f"{uuid.uuid4().hex}{ext}"
         file_path = os.path.join(save_dir, safe_name)
         async with aiofiles.open(file_path, "wb") as out:
             await out.write(content)
         doc = OrgDocument(
             company_id=company_id,
             document_type=dt,
-            file_name=f.filename,
+            file_name=os.path.basename(f.filename or safe_name),  # store original name for display
             storage_path=file_path,
             uploaded_by=str(current_user.id),
         )

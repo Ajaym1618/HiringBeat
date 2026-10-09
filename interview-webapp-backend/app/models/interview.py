@@ -12,6 +12,7 @@ class Interview(Document):
     company_id: str
     candidate_name: Optional[str] = None
     candidate_email: Optional[EmailStr] = None
+    candidate_id: Optional[str] = None
     status: Literal["scheduled", "active", "completed"] = "scheduled"
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None

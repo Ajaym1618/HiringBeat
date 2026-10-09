@@ -58,10 +58,18 @@ async def post_alert(body: AlertRequest):
 
 @router.get("/images/{path:path}")
 async def serve_image(path: str):
+    # Block access to org_docs — those are served only via super_admin endpoints
+    if path.startswith("org_docs"):
+        raise HTTPException(status_code=403, detail="Access denied")
     file_path = os.path.join(settings.UPLOAD_FOLDER, path)
-    if not os.path.isfile(file_path):
+    # Prevent path traversal — ensure resolved path stays inside UPLOAD_FOLDER
+    upload_root = os.path.realpath(settings.UPLOAD_FOLDER)
+    resolved = os.path.realpath(file_path)
+    if not resolved.startswith(upload_root):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not os.path.isfile(resolved):
         raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(file_path)
+    return FileResponse(resolved)
 
 
 @router.get("/logs/{code}")

@@ -1,5 +1,7 @@
 import secrets
 from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 from app.models.interview import Interview
 from app.models.activity_log import ActivityLog
 from app.schemas.interview import CreateInterviewRequest, InterviewOut
@@ -9,10 +11,28 @@ from app.core.permissions import (
     user_can_access_interview, is_recruiter_like
 )
 from app.models.user import User
+from app.models.company import Company
+from app.core.subscription import effective_interview_limit, enforce_interview_limit
 from app.socket_events import sio
+from bson.errors import InvalidId
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
+
+# Optional bearer for get_by_code
+_optional_bearer = HTTPBearer(auto_error=False)
+
+
+async def _get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
+) -> Optional[User]:
+    """Return the authenticated user if a valid bearer token is present, else None."""
+    if not credentials:
+        return None
+    try:
+        return await get_current_user(credentials)
+    except Exception:
+        return None
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -21,6 +41,34 @@ async def create_interview(
     current_user: User = Depends(get_current_user),
 ):
     require_recruiter(current_user)
+
+    # --- subscription check (FR-5) ---
+    if not current_user.company_id:
+        raise HTTPException(status_code=403, detail="No company associated with user")
+    try:
+        company = await Company.get(current_user.company_id)
+    except (InvalidId, Exception):
+        raise HTTPException(status_code=403, detail="Company not found")
+    if not company:
+        raise HTTPException(status_code=403, detail="Company not found")
+
+    # Use new plan-based enforcement if subscription_plan_id is set; fall back to legacy
+    if company.subscription_plan_id:
+        await enforce_interview_limit(company)
+    else:
+        # Legacy path: still check org is approved before allowing interview creation
+        from app.core.subscription import check_org_approved
+        await check_org_approved(company)
+        limit = effective_interview_limit(company.interview_limit, company.subscription_expires_at)
+        active_count = await Interview.find(
+            {
+                "company_id": current_user.company_id,
+                "status": {"$in": ["scheduled", "active"]},
+            }
+        ).count()
+        if active_count >= limit:
+            raise HTTPException(status_code=403, detail="SUBSCRIPTION_LIMIT_EXCEEDED")
+
     code = secrets.token_hex(4).upper()  # 8-char hex
     interview = Interview(
         title=body.title,
@@ -49,10 +97,21 @@ async def list_interviews(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/code/{code}")
-async def get_by_code(code: str):
+async def get_by_code(
+    code: str,
+    current_user: Optional[User] = Depends(_get_optional_user),
+):
+    """Look up an interview by code. Optionally associates a candidate_id when authenticated."""
     interview = await Interview.find_one(Interview.interview_code == code)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
+
+    # GAP 9: if a candidate is authenticated, associate them with this interview
+    if current_user and current_user.role == "candidate":
+        if interview.candidate_id != str(current_user.id):
+            interview.candidate_id = str(current_user.id)
+            await interview.save()
+
     return {"id": str(interview.id), "title": interview.title, "status": interview.status, "interview_code": code}
 
 
@@ -73,6 +132,7 @@ async def get_interview(interview_id: str, current_user: User = Depends(get_curr
         "company_id": interview.company_id,
         "candidate_name": interview.candidate_name,
         "candidate_email": interview.candidate_email,
+        "candidate_id": interview.candidate_id,
         "started_at": interview.started_at,
         "ended_at": interview.ended_at,
         "scheduled_at": interview.scheduled_at,

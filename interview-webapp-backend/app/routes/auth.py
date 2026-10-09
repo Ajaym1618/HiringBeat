@@ -48,11 +48,16 @@ async def login(request: Request, body: LoginRequest):
     if user.role in ("recruiter", "company_manager"):
         if body.company_id and str(user.company_id) != str(body.company_id):
             raise HTTPException(status_code=403, detail="Company mismatch")
-        # Validate company active
+        # Validate company status — only block rejected/inactive orgs (GAP 4).
+        # Pending orgs (status=="pending_verification") are allowed to authenticate;
+        # management actions are blocked separately by subscription enforcement.
         if user.company_id:
             company = await Company.get(user.company_id)
-            if company and company.status != "active":
-                raise HTTPException(status_code=403, detail="Company is inactive")
+            if company:
+                if company.status == "rejected":
+                    raise HTTPException(status_code=403, detail="Company has been rejected")
+                if company.status == "inactive":
+                    raise HTTPException(status_code=403, detail="Company is inactive")
 
     token_data: dict = {"user_id": str(user.id), "role": user.role}
     if user.company_id:

@@ -654,33 +654,28 @@ async def test_rejected_org_cannot_create_recruiter_returns_403():
 
 @pytest.mark.asyncio
 async def test_pending_org_cannot_create_interview_returns_403():
-    """A pending org must not be allowed to create interviews (company not found / not active)."""
+    """A pending org must not be allowed to create interviews — check_org_approved raises 403."""
     from app.routes.interviews import create_interview
     from app.schemas.interview import CreateInterviewRequest
     from fastapi import HTTPException
 
     recruiter = FakeUser(user_id="rec1", role="recruiter", company_id="comp_pend")
-    pending_company = FakeCompany(company_id="comp_pend", status="pending_verification", interview_limit=5)
+    # pending_verification status — check_org_approved will raise 403
+    pending_company = FakeCompany(
+        company_id="comp_pend",
+        status="pending_verification",
+        verification_status="pending",
+        interview_limit=100,
+    )
 
     body = CreateInterviewRequest(title="Interview A")
 
-    with patch("app.routes.interviews.Company.get", new_callable=AsyncMock, return_value=pending_company), \
-         patch.object(InterviewModel, "find", create=True) as mock_find:
-        mock_find.return_value = _make_query_mock(count=0)
-        # pending org has 0 active interviews and limit=5 so won't hit subscription limit,
-        # but the login for non-active orgs is blocked at auth.py login endpoint.
-        # The interview creation itself only enforces subscription, not org status —
-        # org status is enforced at login. So this test verifies via subscription limit=0
-        # by setting interview_limit=0 would fail. We instead verify the recruiter
-        # for a pending company is blocked because the company's status blocks login,
-        # which means their token is never issued. As a unit test we verify the guard
-        # that IS present: SUBSCRIPTION_LIMIT_EXCEEDED when count>=limit.
-        pending_company.interview_limit = 0
-        mock_find.return_value = _make_query_mock(count=0)
+    with patch("app.routes.interviews.Company.get", new_callable=AsyncMock, return_value=pending_company):
         with pytest.raises(HTTPException) as exc_info:
             await create_interview(body=body, current_user=recruiter)
 
     assert exc_info.value.status_code == 403
+    assert "pending" in exc_info.value.detail.lower()
 
 
 @pytest.mark.asyncio
