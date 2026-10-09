@@ -41,6 +41,22 @@ class FakeCompany:
         rejection_reason=None,
         verified_at=None,
         verified_by=None,
+        # New fields (GAP 5)
+        subscription_plan_id=None,
+        subscription_status="inactive",
+        subscription_started_at=None,
+        # New org identity fields (GAP 1)
+        org_type=None,
+        registration_number=None,
+        pan=None,
+        gstin=None,
+        registered_address=None,
+        website=None,
+        official_phone=None,
+        authorized_person_name=None,
+        authorized_person_designation=None,
+        authorized_person_email=None,
+        authorized_person_phone=None,
     ):
         self.id = company_id
         self.name = name
@@ -54,6 +70,20 @@ class FakeCompany:
         self.verified_at = verified_at
         self.verified_by = verified_by
         self.created_at = _utc_now()
+        self.subscription_plan_id = subscription_plan_id
+        self.subscription_status = subscription_status
+        self.subscription_started_at = subscription_started_at
+        self.org_type = org_type
+        self.registration_number = registration_number
+        self.pan = pan
+        self.gstin = gstin
+        self.registered_address = registered_address
+        self.website = website
+        self.official_phone = official_phone
+        self.authorized_person_name = authorized_person_name
+        self.authorized_person_designation = authorized_person_designation
+        self.authorized_person_email = authorized_person_email
+        self.authorized_person_phone = authorized_person_phone
 
     async def insert(self):
         return self
@@ -102,6 +132,7 @@ class FakeInterview:
         status="scheduled",
         company_id="comp1",
         candidate_email="candidate@test.com",
+        candidate_id=None,
         recruiter_id="rec1",
         face_reference_path=None,
         started_at=None,
@@ -116,6 +147,7 @@ class FakeInterview:
         self.status = status
         self.company_id = company_id
         self.candidate_email = candidate_email
+        self.candidate_id = candidate_id
         self.recruiter_id = recruiter_id
         self.face_reference_path = face_reference_path
         self.started_at = started_at
@@ -147,6 +179,13 @@ async def test_register_success():
         manager_name="Alice",
         manager_email="alice@acme.com",
         password="Secret123",
+        org_type="Private Limited",
+        registered_address="123 Main St, Mumbai",
+        official_phone="+919876543210",
+        authorized_person_name="Alice Smith",
+        authorized_person_designation="Director",
+        authorized_person_email="alice.auth@acme.com",
+        authorized_person_phone="+919876543211",
     )
 
     fake_company = FakeCompany(company_id="comp_new", status="pending_verification")
@@ -191,6 +230,13 @@ async def test_register_creates_pending_status():
         manager_name="Bob",
         manager_email="bob@pending.com",
         password="Secret123",
+        org_type="Private Limited",
+        registered_address="456 Elm St, Delhi",
+        official_phone="+919876543212",
+        authorized_person_name="Bob Brown",
+        authorized_person_designation="CEO",
+        authorized_person_email="bob.auth@pending.com",
+        authorized_person_phone="+919876543213",
     )
 
     created_companies = []
@@ -245,6 +291,13 @@ async def test_register_creates_company_manager_account():
         manager_name="Carol",
         manager_email="carol@mgrcorp.com",
         password="Secret123",
+        org_type="LLP",
+        registered_address="789 Oak Ave, Bangalore",
+        official_phone="+919876543214",
+        authorized_person_name="Carol White",
+        authorized_person_designation="Managing Partner",
+        authorized_person_email="carol.auth@mgrcorp.com",
+        authorized_person_phone="+919876543215",
     )
 
     fake_company = FakeCompany(company_id="comp_mgr", status="pending_verification")
@@ -299,6 +352,13 @@ async def test_register_duplicate_email_returns_400():
         manager_name="Dave",
         manager_email="dave@existing.com",
         password="Secret123",
+        org_type="Private Limited",
+        registered_address="101 Pine Rd, Chennai",
+        official_phone="+919876543216",
+        authorized_person_name="Dave Johnson",
+        authorized_person_designation="Director",
+        authorized_person_email="dave.auth@existing.com",
+        authorized_person_phone="+919876543217",
     )
     existing = FakeUser(email="dave@existing.com")
 
@@ -325,6 +385,13 @@ async def test_register_duplicate_org_name_returns_409():
         manager_name="Eve",
         manager_email="eve@newcorp.com",
         password="Secret123",
+        org_type="Public Limited",
+        registered_address="202 Maple St, Hyderabad",
+        official_phone="+919876543218",
+        authorized_person_name="Eve Davis",
+        authorized_person_designation="CFO",
+        authorized_person_email="eve.auth@newcorp.com",
+        authorized_person_phone="+919876543219",
     )
     existing_company = FakeCompany(name="Existing Corp")
 
@@ -352,6 +419,13 @@ async def test_register_missing_required_field_returns_422():
             manager_name="Frank",
             manager_email="frank@corp.com",
             password="Secret123",
+            org_type="Private Limited",
+            registered_address="505 Ash St, Ahmedabad",
+            official_phone="+919876543224",
+            authorized_person_name="Frank Lee",
+            authorized_person_designation="Director",
+            authorized_person_email="frank.auth@corp.com",
+            authorized_person_phone="+919876543225",
         )
 
 
@@ -371,6 +445,13 @@ async def test_register_company_insert_failure_returns_500():
         manager_name="Greta",
         manager_email="greta@fail.com",
         password="Secret123",
+        org_type="Partnership",
+        registered_address="303 Cedar Ln, Pune",
+        official_phone="+919876543220",
+        authorized_person_name="Greta Miller",
+        authorized_person_designation="Partner",
+        authorized_person_email="greta.auth@fail.com",
+        authorized_person_phone="+919876543221",
     )
 
     fake_company = MagicMock()
@@ -409,6 +490,13 @@ async def test_register_user_insert_failure_rolls_back_company():
         manager_name="Hank",
         manager_email="hank@rollback.com",
         password="Secret123",
+        org_type="Private Limited",
+        registered_address="404 Birch Blvd, Kolkata",
+        official_phone="+919876543222",
+        authorized_person_name="Hank Wilson",
+        authorized_person_designation="Director",
+        authorized_person_email="hank.auth@rollback.com",
+        authorized_person_phone="+919876543223",
     )
 
     fake_company = MagicMock()
@@ -1002,3 +1090,598 @@ async def test_admin_companies_returns_all_statuses():
     assert "pending_verification" in statuses, "pending_verification orgs must appear in admin list"
     assert "rejected" in statuses, "rejected orgs must appear in admin list"
     assert len(result) == 4
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — GAP 1: OrgRegisterRequest with full fields
+# ---------------------------------------------------------------------------
+
+def test_register_with_full_fields():
+    """OrgRegisterRequest must accept all new required and optional fields without error."""
+    from app.schemas.org import OrgRegisterRequest
+
+    body = OrgRegisterRequest(
+        org_name="Full Corp",
+        manager_name="Alice",
+        manager_email="alice@full.com",
+        password="Secret123",
+        org_type="Private Limited",
+        registration_number="U12345MH2020PTC123456",
+        pan="ABCDE1234F",
+        gstin="27ABCDE1234F1Z5",
+        registered_address="123 Main St, Mumbai",
+        website="https://fullcorp.com",
+        official_phone="+919876543210",
+        authorized_person_name="Bob Smith",
+        authorized_person_designation="Director",
+        authorized_person_email="bob@full.com",
+        authorized_person_phone="+919876543211",
+    )
+    # Should not raise ValidationError
+    assert body.org_name == "Full Corp"
+    assert body.org_type == "Private Limited"
+    assert body.pan == "ABCDE1234F"
+    assert body.authorized_person_name == "Bob Smith"
+
+
+def test_register_missing_org_type_raises_validation_error():
+    """org_type is required — omitting it must raise ValidationError."""
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(
+            org_name="TypelessCorp",
+            manager_name="Alice",
+            manager_email="alice@typeless.com",
+            password="Secret123",
+            # org_type missing
+            registered_address="123 Main St",
+            official_phone="+919876543210",
+            authorized_person_name="Alice",
+            authorized_person_designation="Director",
+            authorized_person_email="alice.auth@typeless.com",
+            authorized_person_phone="+919876543211",
+        )
+
+
+def test_register_required_verification_docs_validate():
+    """OrgDocumentOut schema must serialize correctly."""
+    from app.schemas.org import OrgDocumentOut
+    from datetime import datetime, timezone
+
+    doc = OrgDocumentOut(
+        id="doc1",
+        company_id="comp1",
+        document_type="pan_document",
+        file_name="pan.pdf",
+        uploaded_at=datetime.now(timezone.utc),
+        uploaded_by="user1",
+        verification_status="pending",
+    )
+    assert doc.document_type == "pan_document"
+    assert doc.verification_status == "pending"
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — GAP 4: Pending org can login
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_pending_org_can_login():
+    """A user from a pending organization MUST be allowed to log in (GAP 4)."""
+    from app.routes.auth import login
+    from app.schemas.auth import LoginRequest
+    from fastapi import Request
+
+    pending_company = FakeCompany(status="pending_verification", verification_status="pending")
+    user = FakeUser(role="company_manager", company_id="comp_pending")
+    user.password_hash = __import__("bcrypt").hashpw(b"Secret123", __import__("bcrypt").gensalt()).decode()
+
+    body = LoginRequest(email="mgr@pending.com", password="Secret123")
+
+    mock_request = MagicMock(spec=Request)
+    mock_request.app = MagicMock()
+    mock_request.app.state = MagicMock()
+
+    with patch.object(UserModel, "find_one", new_callable=AsyncMock, return_value=user, create=True), \
+         patch.object(UserModel, "email", new=MagicMock(), create=True), \
+         patch("app.routes.auth.Company.get", new_callable=AsyncMock, return_value=pending_company), \
+         patch("app.routes.auth.verify_password", return_value=True), \
+         patch("app.routes.auth.create_access_token", return_value="pending.jwt.token"):
+        result = await login.__wrapped__(mock_request, body)
+
+    # Must succeed — pending org is NOT blocked from login
+    assert result.access_token == "pending.jwt.token"
+
+
+@pytest.mark.asyncio
+async def test_inactive_org_login_blocked_returns_403():
+    """Login must be blocked for users of an inactive (not just rejected) company."""
+    from app.routes.auth import login
+    from app.schemas.auth import LoginRequest
+    from fastapi import HTTPException, Request
+
+    inactive_company = FakeCompany(status="inactive")
+    user = FakeUser(role="company_manager", company_id="comp_inactive")
+    user.password_hash = __import__("bcrypt").hashpw(b"Secret123", __import__("bcrypt").gensalt()).decode()
+
+    body = LoginRequest(email="mgr@inactive.com", password="Secret123")
+
+    mock_request = MagicMock(spec=Request)
+    mock_request.app = MagicMock()
+    mock_request.app.state = MagicMock()
+
+    with patch.object(UserModel, "find_one", new_callable=AsyncMock, return_value=user, create=True), \
+         patch.object(UserModel, "email", new=MagicMock(), create=True), \
+         patch("app.routes.auth.Company.get", new_callable=AsyncMock, return_value=inactive_company), \
+         patch("app.routes.auth.verify_password", return_value=True):
+        with pytest.raises(HTTPException) as exc_info:
+            await login.__wrapped__(mock_request, body)
+
+    assert exc_info.value.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — GAP 7: Subscription enforcement with new plan-based limits
+# ---------------------------------------------------------------------------
+
+class FakeSubscriptionPlan:
+    """Fake SubscriptionPlan for unit tests — mirrors SubscriptionPlan model fields."""
+    def __init__(
+        self,
+        plan_id="plan1",
+        plan_name="Basic",
+        max_admins=1,
+        max_recruiters=5,
+        max_interviews=25,
+        status="active",
+    ):
+        self.id = plan_id
+        self.plan_name = plan_name
+        self.max_admins = max_admins
+        self.max_recruiters = max_recruiters
+        self.max_interviews = max_interviews
+        self.status = status
+
+
+@pytest.mark.asyncio
+async def test_subscription_inactive_blocks_recruiter_creation():
+    """enforce_recruiter_limit must raise 403 when subscription_status != active."""
+    from app.core.subscription import enforce_recruiter_limit
+    from fastapi import HTTPException
+
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="approved",
+        subscription_plan_id="plan1",
+        subscription_status="inactive",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await enforce_recruiter_limit(company)
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_subscription_inactive_blocks_admin_creation():
+    """enforce_admin_limit must raise 403 when subscription_status != active."""
+    from app.core.subscription import enforce_admin_limit
+    from fastapi import HTTPException
+
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="approved",
+        subscription_plan_id="plan1",
+        subscription_status="inactive",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await enforce_admin_limit(company)
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_subscription_inactive_blocks_interview_creation():
+    """enforce_interview_limit must raise 403 when subscription_status != active."""
+    from app.core.subscription import enforce_interview_limit
+    from fastapi import HTTPException
+
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="approved",
+        subscription_plan_id="plan1",
+        subscription_status="inactive",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await enforce_interview_limit(company)
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_basic_plan_recruiter_limit_5():
+    """Basic plan allows max 5 recruiters — 6th attempt must raise 409."""
+    from app.core.subscription import enforce_recruiter_limit
+    from fastapi import HTTPException
+
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="approved",
+        subscription_plan_id="plan_basic",
+        subscription_status="active",
+    )
+    basic_plan = FakeSubscriptionPlan(plan_name="Basic", max_recruiters=5, max_admins=1, max_interviews=25)
+
+    qm = _make_query_mock(count=5)
+
+    with patch("app.core.subscription.SubscriptionPlan.get", new_callable=AsyncMock, return_value=basic_plan), \
+         patch.object(UserModel, "find", return_value=qm, create=True):
+        with pytest.raises(HTTPException) as exc_info:
+            await enforce_recruiter_limit(company)
+
+    assert exc_info.value.status_code == 409
+    assert "Recruiter limit" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_basic_plan_admin_limit_1():
+    """Basic plan allows max 1 admin — 2nd attempt must raise 409."""
+    from app.core.subscription import enforce_admin_limit
+    from fastapi import HTTPException
+
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="approved",
+        subscription_plan_id="plan_basic",
+        subscription_status="active",
+    )
+    basic_plan = FakeSubscriptionPlan(plan_name="Basic", max_recruiters=5, max_admins=1, max_interviews=25)
+
+    qm = _make_query_mock(count=1)
+
+    with patch("app.core.subscription.SubscriptionPlan.get", new_callable=AsyncMock, return_value=basic_plan), \
+         patch.object(UserModel, "find", return_value=qm, create=True):
+        with pytest.raises(HTTPException) as exc_info:
+            await enforce_admin_limit(company)
+
+    assert exc_info.value.status_code == 409
+    assert "Admin limit" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_professional_plan_limits():
+    """Professional plan allows max 3 admins, 15 recruiters, 100 interviews."""
+    professional_plan = FakeSubscriptionPlan(
+        plan_name="Professional",
+        max_admins=3,
+        max_recruiters=15,
+        max_interviews=100,
+    )
+    assert professional_plan.max_admins == 3
+    assert professional_plan.max_recruiters == 15
+    assert professional_plan.max_interviews == 100
+
+
+@pytest.mark.asyncio
+async def test_enterprise_plan_limits():
+    """Enterprise plan allows max 10 admins, 50 recruiters, 500 interviews."""
+    enterprise_plan = FakeSubscriptionPlan(
+        plan_name="Enterprise",
+        max_admins=10,
+        max_recruiters=50,
+        max_interviews=500,
+    )
+    assert enterprise_plan.max_admins == 10
+    assert enterprise_plan.max_recruiters == 50
+    assert enterprise_plan.max_interviews == 500
+
+
+@pytest.mark.asyncio
+async def test_expired_subscription_blocks_recruiter_creation():
+    """An expired subscription must raise 403, not silently downgrade."""
+    from app.core.subscription import enforce_recruiter_limit
+    from fastapi import HTTPException
+    from datetime import timedelta
+
+    expired_at = _utc_now() - timedelta(days=1)
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="approved",
+        subscription_plan_id="plan1",
+        subscription_status="active",
+        subscription_expires_at=expired_at,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await enforce_recruiter_limit(company)
+
+    assert exc_info.value.status_code == 403
+    assert "expired" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_expired_subscription_blocks_interview_creation():
+    """An expired subscription must block interview creation with 403."""
+    from app.core.subscription import enforce_interview_limit
+    from fastapi import HTTPException
+    from datetime import timedelta
+
+    expired_at = _utc_now() - timedelta(days=1)
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="approved",
+        subscription_plan_id="plan1",
+        subscription_status="active",
+        subscription_expires_at=expired_at,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await enforce_interview_limit(company)
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_pending_org_blocks_recruiter_enforce():
+    """check_org_approved must raise 403 when verification_status == pending."""
+    from app.core.subscription import check_org_approved
+    from fastapi import HTTPException
+
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="pending",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await check_org_approved(company)
+
+    assert exc_info.value.status_code == 403
+    assert "pending" in exc_info.value.detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — GAP 10: Candidate history by candidate_id
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_candidate_history_by_candidate_id():
+    """Interviews linked only by candidate_id (no email match) must appear in history."""
+    from app.routes.candidates import candidate_history
+
+    candidate = FakeUser(user_id="cand1", role="candidate", email="cand1@test.com", company_id=None)
+    interview_by_id = FakeInterview(
+        interview_id="iv_cid",
+        candidate_email="other@test.com",  # email doesn't match
+        candidate_id="cand1",              # but candidate_id does
+    )
+
+    # by_email returns nothing; by_id returns one interview
+    qm_empty = _make_query_mock(results=[])
+    qm_by_id = _make_query_mock(results=[interview_by_id])
+
+    call_count = {"n": 0}
+
+    def side_effect_find(*args, **kwargs):
+        call_count["n"] += 1
+        # First call: by email → empty; second call: by candidate_id → one result
+        if call_count["n"] == 1:
+            return qm_empty
+        return qm_by_id
+
+    with patch.object(InterviewModel, "find", side_effect=side_effect_find, create=True), \
+         patch.object(InterviewModel, "candidate_email", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "candidate_id", new=MagicMock(), create=True):
+        result = await candidate_history(current_user=candidate)
+
+    assert len(result) == 1
+    assert result[0]["id"] == "iv_cid"
+
+
+@pytest.mark.asyncio
+async def test_candidate_cannot_access_another_candidates_history():
+    """candidate_id is scoped to current_user.id — another candidate's history is not returned."""
+    from app.routes.candidates import candidate_history
+
+    candidate_a = FakeUser(user_id="candA", role="candidate", email="a@test.com", company_id=None)
+    # Only interviews belonging to candidate_a's email/id are returned by the mock
+    # Interview with candidate_id="candB" will NOT be in the results
+    qm_empty = _make_query_mock(results=[])
+
+    with patch.object(InterviewModel, "find", return_value=qm_empty, create=True), \
+         patch.object(InterviewModel, "candidate_email", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "candidate_id", new=MagicMock(), create=True):
+        result = await candidate_history(current_user=candidate_a)
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_candidate_history_deduplicates_by_id():
+    """An interview matched by both email and candidate_id must appear only once."""
+    from app.routes.candidates import candidate_history
+
+    candidate = FakeUser(user_id="cand1", role="candidate", email="cand1@test.com", company_id=None)
+    shared_interview = FakeInterview(
+        interview_id="iv_shared",
+        candidate_email="cand1@test.com",
+        candidate_id="cand1",
+    )
+
+    # Both queries return the same interview
+    qm = _make_query_mock(results=[shared_interview])
+
+    with patch.object(InterviewModel, "find", return_value=qm, create=True), \
+         patch.object(InterviewModel, "candidate_email", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "candidate_id", new=MagicMock(), create=True):
+        result = await candidate_history(current_user=candidate)
+
+    # Must be deduplicated — only 1 result, not 2
+    assert len(result) == 1
+    assert result[0]["id"] == "iv_shared"
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — GAP 6: Seed idempotency
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_seed_is_idempotent():
+    """seed_subscription_plans must not insert a plan that already exists."""
+    from app.seed_plans import seed_subscription_plans
+    from app.models.subscription_plan import SubscriptionPlan
+
+    existing_plan = FakeSubscriptionPlan(plan_name="Basic")
+    existing_plan.insert = AsyncMock()
+
+    # find_one returns an existing plan — insert must NOT be called
+    with patch.object(SubscriptionPlan, "find_one", new_callable=AsyncMock, return_value=existing_plan, create=True):
+        await seed_subscription_plans()
+
+    # insert() is on the instance returned by find_one, not on a new object —
+    # no new SubscriptionPlan(...).insert() call should happen
+    existing_plan.insert.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_seed_inserts_when_no_plans_exist():
+    """seed_subscription_plans must insert all 3 plans when none exist."""
+    from app.seed_plans import seed_subscription_plans, PLANS
+    from app.models.subscription_plan import SubscriptionPlan
+
+    inserted_plans = []
+
+    class CapturingPlan:
+        def __init__(self, **kwargs):
+            self.plan_name = kwargs.get("plan_name")
+            inserted_plans.append(self)
+
+        async def insert(self):
+            return self
+
+        @classmethod
+        async def find_one(cls, query=None):
+            return None
+
+    with patch("app.seed_plans.SubscriptionPlan", CapturingPlan):
+        await seed_subscription_plans()
+
+    assert len(inserted_plans) == len(PLANS)
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — GAP 3: Super Admin document endpoints
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_super_admin_can_list_all_orgs():
+    """GET /api/admin/orgs must return all organizations for super_admin."""
+    from app.routes.admin import list_all_orgs
+
+    admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
+    companies = [
+        FakeCompany(company_id="c1", status="active"),
+        FakeCompany(company_id="c2", status="pending_verification"),
+    ]
+
+    qm = _make_query_mock(results=companies)
+
+    with patch.object(CompanyModel, "find_all", return_value=qm, create=True), \
+         patch.object(UserModel, "find_one", new_callable=AsyncMock, return_value=None, create=True):
+        result = await list_all_orgs(status=None, current_user=admin_user)
+
+    assert len(result) == 2
+
+
+@pytest.mark.asyncio
+async def test_super_admin_can_list_org_documents():
+    """GET /api/admin/orgs/{company_id}/documents must return document list."""
+    from app.routes.admin import list_org_documents
+    from app.models.org_document import OrgDocument as OrgDocumentModel
+
+    admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
+    company = FakeCompany(company_id="comp_doc")
+
+    class FakeOrgDocument:
+        def __init__(self):
+            self.id = "doc1"
+            self.company_id = "comp_doc"
+            self.document_type = "pan_document"
+            self.file_name = "pan.pdf"
+            self.uploaded_at = _utc_now()
+            self.uploaded_by = "user1"
+            self.verification_status = "pending"
+
+    fake_doc = FakeOrgDocument()
+    qm = _make_query_mock(results=[fake_doc])
+
+    with patch("app.routes.admin.get_company_or_404", new_callable=AsyncMock, return_value=company), \
+         patch.object(OrgDocumentModel, "find", return_value=qm, create=True):
+        result = await list_org_documents(company_id="comp_doc", current_user=admin_user)
+
+    assert len(result) == 1
+    assert result[0]["document_type"] == "pan_document"
+
+
+@pytest.mark.asyncio
+async def test_non_super_admin_cannot_list_org_documents():
+    """Non-super_admin must get 403 when accessing org documents."""
+    from app.routes.admin import list_org_documents
+    from fastapi import HTTPException
+
+    mgr_user = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await list_org_documents(company_id="comp1", current_user=mgr_user)
+
+    assert exc_info.value.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — GAP 8: Subscription plan management
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_super_admin_can_list_subscription_plans():
+    """GET /api/admin/subscription-plans must return plans list."""
+    from app.routes.admin import list_subscription_plans
+    from app.models.subscription_plan import SubscriptionPlan as SPModel
+
+    admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
+    plans = [
+        FakeSubscriptionPlan(plan_id="p1", plan_name="Basic", max_admins=1, max_recruiters=5, max_interviews=25),
+        FakeSubscriptionPlan(plan_id="p2", plan_name="Professional", max_admins=3, max_recruiters=15, max_interviews=100),
+    ]
+
+    qm = _make_query_mock(results=plans)
+
+    with patch.object(SPModel, "find_all", return_value=qm, create=True):
+        result = await list_subscription_plans(current_user=admin_user)
+
+    assert len(result) == 2
+    plan_names = {p["plan_name"] for p in result}
+    assert "Basic" in plan_names
+    assert "Professional" in plan_names
+
+
+@pytest.mark.asyncio
+async def test_patch_subscription_with_plan_id():
+    """PATCH /api/admin/orgs/{id}/subscription must assign plan and set active status."""
+    from app.routes.admin import patch_subscription
+    from app.schemas.org import PatchSubscriptionRequest
+    from app.models.subscription_plan import SubscriptionPlan as SPModel
+
+    admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
+    company = FakeCompany(company_id="comp1", subscription_status="inactive")
+    plan = FakeSubscriptionPlan(plan_id="plan_basic", plan_name="Basic")
+    body = PatchSubscriptionRequest(plan_id="plan_basic")
+
+    with patch("app.routes.admin.get_company_or_404", new_callable=AsyncMock, return_value=company), \
+         patch.object(SPModel, "get", new_callable=AsyncMock, return_value=plan, create=True):
+        result = await patch_subscription(company_id="comp1", body=body, current_user=admin_user)
+
+    assert result["subscription_plan_id"] == "plan_basic"
+    assert result["subscription_status"] == "active"
