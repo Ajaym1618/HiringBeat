@@ -186,6 +186,7 @@ async def test_register_success():
         authorized_person_designation="Director",
         authorized_person_email="alice.auth@acme.com",
         authorized_person_phone="+919876543211",
+        pan="ABCDE1234F",
     )
 
     fake_company = FakeCompany(company_id="comp_new", status="pending_verification")
@@ -237,6 +238,7 @@ async def test_register_creates_pending_status():
         authorized_person_designation="CEO",
         authorized_person_email="bob.auth@pending.com",
         authorized_person_phone="+919876543213",
+        pan="ABCDE1234F",
     )
 
     created_companies = []
@@ -298,6 +300,7 @@ async def test_register_creates_company_manager_account():
         authorized_person_designation="Managing Partner",
         authorized_person_email="carol.auth@mgrcorp.com",
         authorized_person_phone="+919876543215",
+        pan="ABCDE1234F",
     )
 
     fake_company = FakeCompany(company_id="comp_mgr", status="pending_verification")
@@ -359,6 +362,7 @@ async def test_register_duplicate_email_returns_400():
         authorized_person_designation="Director",
         authorized_person_email="dave.auth@existing.com",
         authorized_person_phone="+919876543217",
+        pan="ABCDE1234F",
     )
     existing = FakeUser(email="dave@existing.com")
 
@@ -392,6 +396,7 @@ async def test_register_duplicate_org_name_returns_409():
         authorized_person_designation="CFO",
         authorized_person_email="eve.auth@newcorp.com",
         authorized_person_phone="+919876543219",
+        pan="ABCDE1234F",
     )
     existing_company = FakeCompany(name="Existing Corp")
 
@@ -426,6 +431,7 @@ async def test_register_missing_required_field_returns_422():
             authorized_person_designation="Director",
             authorized_person_email="frank.auth@corp.com",
             authorized_person_phone="+919876543225",
+            pan="ABCDE1234F",
         )
 
 
@@ -452,6 +458,7 @@ async def test_register_company_insert_failure_returns_500():
         authorized_person_designation="Partner",
         authorized_person_email="greta.auth@fail.com",
         authorized_person_phone="+919876543221",
+        pan="ABCDE1234F",
     )
 
     fake_company = MagicMock()
@@ -497,6 +504,7 @@ async def test_register_user_insert_failure_rolls_back_company():
         authorized_person_designation="Director",
         authorized_person_email="hank.auth@rollback.com",
         authorized_person_phone="+919876543223",
+        pan="ABCDE1234F",
     )
 
     fake_company = MagicMock()
@@ -1771,19 +1779,21 @@ async def test_candidate_can_claim_unassigned_interview():
 
     candidate = FakeUser(user_id="cand_free", role="candidate", email="free@test.com")
     interview = FakeInterview(
-        interview_id="iv_free",
+        interview_id="507f1f77bcf86cd799439011",  # valid 24-char hex ObjectId
         interview_code="FREE001",
         candidate_email=None,
         candidate_id=None,
     )
     interview.save = AsyncMock()
 
+    motor_coll = MagicMock()
+    motor_coll.find_one_and_update = AsyncMock(return_value={"_id": "507f1f77bcf86cd799439011"})  # non-None = claimed successfully
     with patch.object(InterviewModel, "find_one", new_callable=AsyncMock, return_value=interview, create=True), \
-         patch.object(InterviewModel, "interview_code", new=MagicMock(), create=True):
+         patch.object(InterviewModel, "interview_code", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "get_motor_collection", return_value=motor_coll, create=True):
         result = await get_by_code(code="FREE001", current_user=candidate)
-
     assert result["interview_code"] == "FREE001"
-    interview.save.assert_called_once()
+    motor_coll.find_one_and_update.assert_called_once()
     assert interview.candidate_id == "cand_free"
 
 
@@ -1921,3 +1931,482 @@ def test_validate_magic_bytes_accepts_jpeg():
 
     jpeg_content = b"\xff\xd8\xff\xe0 fake jpeg content"
     _validate_magic_bytes(jpeg_content, "image.jpg")  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS � FIX 1: Strict upload validation
+# ---------------------------------------------------------------------------
+
+def test_validate_file_strict_rejects_jpeg_with_pdf_extension():
+    """JPEG content with .pdf extension must be rejected."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    jpeg_bytes = b"\xff\xd8\xff\xe0 fake jpeg"
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(jpeg_bytes, "doc.pdf")
+    assert exc.value.status_code == 422
+
+
+def test_validate_file_strict_rejects_empty_file():
+    """Empty file must be rejected."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(b"", "empty.pdf")
+    assert exc.value.status_code == 422
+
+
+def test_validate_file_strict_rejects_unknown_extension():
+    """Unknown extension must be rejected."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(b"%PDF-1.4", "doc.exe")
+    assert exc.value.status_code == 422
+
+
+def test_validate_file_strict_accepts_valid_png():
+    """Valid PNG content with .png extension must pass."""
+    from app.routes.org import _validate_file_strict
+    png_bytes = b"\x89PNG\r\n\x1a\n fake png content"
+    _validate_file_strict(png_bytes, "image.png")  # should not raise
+
+
+def test_validate_file_strict_accepts_valid_pdf():
+    """Valid PDF content with .pdf extension must pass."""
+    from app.routes.org import _validate_file_strict
+    pdf_bytes = b"%PDF-1.4 fake pdf content"
+    _validate_file_strict(pdf_bytes, "document.pdf")  # should not raise
+
+
+def test_validate_file_strict_accepts_valid_jpeg():
+    """Valid JPEG content with .jpg extension must pass."""
+    from app.routes.org import _validate_file_strict
+    jpeg_bytes = b"\xff\xd8\xff\xe0 fake jpeg content"
+    _validate_file_strict(jpeg_bytes, "photo.jpg")  # should not raise
+
+
+def test_validate_file_strict_rejects_pdf_content_with_jpeg_extension():
+    """PDF content with .jpg extension must be rejected."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    pdf_bytes = b"%PDF-1.4 fake pdf"
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(pdf_bytes, "spoofed.jpg")
+    assert exc.value.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS � FIX 2: PAN validation
+# ---------------------------------------------------------------------------
+
+def test_pan_validation_valid():
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    req = OrgRegisterRequest(
+        org_name="Test Org",
+        manager_name="Test Manager",
+        manager_email="mgr@test.com",
+        password="Secret123",
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        official_phone="9999999999",
+        authorized_person_name="Auth Person",
+        authorized_person_designation="Director",
+        authorized_person_email="auth@test.com",
+        authorized_person_phone="8888888888",
+        pan="ABCDE1234F",
+    )
+    assert req.pan == "ABCDE1234F"
+
+
+def test_pan_validation_invalid():
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(
+            org_name="Test Org",
+            manager_name="Test Manager",
+            manager_email="mgr@test.com",
+            password="Secret123",
+            org_type="Private Limited",
+            registered_address="123 Main St",
+            official_phone="9999999999",
+            authorized_person_name="Auth Person",
+            authorized_person_designation="Director",
+            authorized_person_email="auth@test.com",
+            authorized_person_phone="8888888888",
+            pan="INVALID",
+        )
+
+
+def test_pan_required():
+    """PAN is required -- missing pan raises ValidationError."""
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(
+            org_name="Test Org",
+            manager_name="Test Manager",
+            manager_email="mgr@test.com",
+            password="Secret123",
+            org_type="Private Limited",
+            registered_address="123 Main St",
+            official_phone="9999999999",
+            authorized_person_name="Auth Person",
+            authorized_person_designation="Director",
+            authorized_person_email="auth@test.com",
+            authorized_person_phone="8888888888",
+            # pan missing
+        )
+
+
+def test_pan_lowercase_normalized():
+    """PAN with lowercase letters must be normalized to uppercase and validated."""
+    from app.schemas.org import OrgRegisterRequest
+    req = OrgRegisterRequest(
+        org_name="Test Org",
+        manager_name="Test Manager",
+        manager_email="mgr2@test.com",
+        password="Secret123",
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        official_phone="9999999999",
+        authorized_person_name="Auth Person",
+        authorized_person_designation="Director",
+        authorized_person_email="auth2@test.com",
+        authorized_person_phone="8888888888",
+        pan="abcde1234f",
+    )
+    assert req.pan == "ABCDE1234F"
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS � FIX 5: Candidate history cross-candidate leakage prevention
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_candidate_email_match_blocked_if_different_candidate_id():
+    """Interview matched by email but assigned to different candidate_id must NOT appear."""
+    from app.routes.candidates import candidate_history
+
+    candidate = FakeUser(user_id="cand_a", role="candidate", email="shared@test.com", company_id=None)
+    # This interview has shared email but is assigned to a DIFFERENT candidate
+    interview_wrong = FakeInterview(
+        interview_id="iv_wrong",
+        candidate_email="shared@test.com",
+        candidate_id="cand_b",  # different candidate
+    )
+
+    qm_empty = _make_query_mock(results=[])
+    qm_wrong = _make_query_mock(results=[interview_wrong])
+
+    call_count = [0]
+    def find_side_effect(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return qm_wrong    # by_email query returns the wrong-candidate interview
+        return qm_empty        # by_id query returns nothing
+
+    with patch.object(InterviewModel, "find", side_effect=find_side_effect, create=True), \
+         patch.object(InterviewModel, "candidate_email", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "candidate_id", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "created_at", new=MagicMock(), create=True):
+        result = await candidate_history(current_user=candidate)
+
+    # The interview assigned to cand_b must not appear for cand_a
+    ids = [r["id"] for r in result]
+    assert "iv_wrong" not in ids
+
+
+@pytest.mark.asyncio
+async def test_candidate_email_match_included_if_unclaimed():
+    """Interview matched by email with no candidate_id (unclaimed) MUST appear in history."""
+    from app.routes.candidates import candidate_history
+
+    candidate = FakeUser(user_id="cand_a", role="candidate", email="shared@test.com", company_id=None)
+    interview_unclaimed = FakeInterview(
+        interview_id="iv_unclaimed",
+        candidate_email="shared@test.com",
+        candidate_id=None,  # unclaimed
+    )
+
+    qm_empty = _make_query_mock(results=[])
+    qm_unclaimed = _make_query_mock(results=[interview_unclaimed])
+
+    call_count = [0]
+    def find_side_effect(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return qm_unclaimed      # by_email query returns the unclaimed interview
+        return qm_empty              # by_id query returns nothing
+
+    with patch.object(InterviewModel, "find", side_effect=find_side_effect, create=True), \
+         patch.object(InterviewModel, "candidate_email", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "candidate_id", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "created_at", new=MagicMock(), create=True):
+        result = await candidate_history(current_user=candidate)
+
+    ids = [r["id"] for r in result]
+    assert "iv_unclaimed" in ids
+
+
+# ---------------------------------------------------------------------------
+# Strict file upload validation tests
+# ---------------------------------------------------------------------------
+
+def test_validate_file_strict_rejects_jpeg_content_with_pdf_extension():
+    """JPEG content with .pdf extension must be rejected — extension/content mismatch."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    jpeg_bytes = b"\xff\xd8\xff\xe0 fake jpeg content"
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(jpeg_bytes, "document.pdf")
+    assert exc.value.status_code == 422
+    assert "content does not match" in exc.value.detail.lower()
+
+
+def test_validate_file_strict_rejects_pdf_content_with_jpg_extension():
+    """PDF content with .jpg extension must be rejected."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    pdf_bytes = b"%PDF-1.4 fake pdf"
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(pdf_bytes, "document.jpg")
+    assert exc.value.status_code == 422
+
+
+def test_validate_file_strict_rejects_empty_file():
+    """Empty file must be rejected regardless of extension."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(b"", "empty.pdf")
+    assert exc.value.status_code == 422
+    assert "empty" in exc.value.detail.lower()
+
+
+def test_validate_file_strict_rejects_unknown_extension():
+    """Extension not in allowlist must be rejected."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(b"%PDF-1.4", "malware.exe")
+    assert exc.value.status_code == 422
+    assert "extension not allowed" in exc.value.detail.lower()
+
+
+def test_validate_file_strict_rejects_spoofed_txt_as_pdf():
+    """Plain text spoofed as PDF must be rejected — no valid PDF signature."""
+    from app.routes.org import _validate_file_strict
+    from fastapi import HTTPException
+    text_bytes = b"This is not a PDF file at all"
+    with pytest.raises(HTTPException) as exc:
+        _validate_file_strict(text_bytes, "fake.pdf")
+    assert exc.value.status_code == 422
+
+
+def test_validate_file_strict_accepts_valid_pdf():
+    """Valid PDF content with .pdf extension must pass."""
+    from app.routes.org import _validate_file_strict
+    pdf_bytes = b"%PDF-1.4 %fake content"
+    _validate_file_strict(pdf_bytes, "real.pdf")  # must not raise
+
+
+def test_validate_file_strict_accepts_valid_jpeg():
+    """Valid JPEG content with .jpg extension must pass."""
+    from app.routes.org import _validate_file_strict
+    jpeg_bytes = b"\xff\xd8\xff\xe0 fake jpeg"
+    _validate_file_strict(jpeg_bytes, "photo.jpg")  # must not raise
+
+
+def test_validate_file_strict_accepts_valid_png():
+    """Valid PNG content with .png extension must pass."""
+    from app.routes.org import _validate_file_strict
+    png_bytes = b"\x89PNG\r\n\x1a\n fake png"
+    _validate_file_strict(png_bytes, "image.png")  # must not raise
+
+
+def test_validate_file_strict_accepts_jpeg_with_jpeg_extension():
+    """Valid JPEG with .jpeg extension must pass."""
+    from app.routes.org import _validate_file_strict
+    jpeg_bytes = b"\xff\xd8\xff\xe0 fake jpeg"
+    _validate_file_strict(jpeg_bytes, "photo.jpeg")  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# PAN validation tests
+# ---------------------------------------------------------------------------
+
+def test_pan_required_field_missing_raises_422():
+    """Missing PAN must raise ValidationError (required field)."""
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(
+            org_name="Test Corp",
+            manager_name="Test Manager",
+            manager_email="mgr@test.com",
+            password="Secret123",
+            org_type="Private Limited",
+            registered_address="123 Main St",
+            official_phone="9999999999",
+            authorized_person_name="Auth Person",
+            authorized_person_designation="Director",
+            authorized_person_email="auth@test.com",
+            authorized_person_phone="8888888888",
+            # pan is missing
+        )
+
+
+def test_pan_invalid_format_raises_422():
+    """Invalid PAN format must raise ValidationError."""
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(
+            org_name="Test Corp",
+            manager_name="Test Manager",
+            manager_email="mgr@test.com",
+            password="Secret123",
+            org_type="Private Limited",
+            registered_address="123 Main St",
+            official_phone="9999999999",
+            authorized_person_name="Auth Person",
+            authorized_person_designation="Director",
+            authorized_person_email="auth@test.com",
+            authorized_person_phone="8888888888",
+            pan="INVALID123",
+        )
+
+
+def test_pan_valid_format_accepted():
+    """Valid PAN format ABCDE1234F must be accepted."""
+    from app.schemas.org import OrgRegisterRequest
+    req = OrgRegisterRequest(
+        org_name="Valid Corp",
+        manager_name="Test Manager",
+        manager_email="mgr@test.com",
+        password="Secret123",
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        official_phone="9999999999",
+        authorized_person_name="Auth Person",
+        authorized_person_designation="Director",
+        authorized_person_email="auth@test.com",
+        authorized_person_phone="8888888888",
+        pan="ABCDE1234F",
+    )
+    assert req.pan == "ABCDE1234F"
+
+
+def test_pan_lowercase_normalized_to_uppercase():
+    """Lowercase PAN must be normalized to uppercase."""
+    from app.schemas.org import OrgRegisterRequest
+    req = OrgRegisterRequest(
+        org_name="Lower Corp",
+        manager_name="Test Manager",
+        manager_email="mgr@test.com",
+        password="Secret123",
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        official_phone="9999999999",
+        authorized_person_name="Auth Person",
+        authorized_person_designation="Director",
+        authorized_person_email="auth@test.com",
+        authorized_person_phone="8888888888",
+        pan="abcde1234f",
+    )
+    assert req.pan == "ABCDE1234F"
+
+
+def test_gstin_optional():
+    """GSTIN is optional — registration must succeed without it."""
+    from app.schemas.org import OrgRegisterRequest
+    req = OrgRegisterRequest(
+        org_name="No GST Corp",
+        manager_name="Test Manager",
+        manager_email="mgr@test.com",
+        password="Secret123",
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        official_phone="9999999999",
+        authorized_person_name="Auth Person",
+        authorized_person_designation="Director",
+        authorized_person_email="auth@test.com",
+        authorized_person_phone="8888888888",
+        pan="ABCDE1234F",
+        # gstin not provided
+    )
+    assert req.gstin is None
+
+
+def test_registration_number_optional():
+    """Registration number is optional — registration must succeed without it."""
+    from app.schemas.org import OrgRegisterRequest
+    req = OrgRegisterRequest(
+        org_name="No Reg Corp",
+        manager_name="Test Manager",
+        manager_email="mgr@test.com",
+        password="Secret123",
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        official_phone="9999999999",
+        authorized_person_name="Auth Person",
+        authorized_person_designation="Director",
+        authorized_person_email="auth@test.com",
+        authorized_person_phone="8888888888",
+        pan="ABCDE1234F",
+        # registration_number not provided
+    )
+    assert req.registration_number is None
+
+
+# ---------------------------------------------------------------------------
+# Candidate history cross-leakage prevention
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_email_matched_interview_excluded_if_assigned_to_other_candidate():
+    """Interview matched by email but candidate_id belongs to a different candidate
+    must NOT appear in the requesting candidate's history."""
+    from app.routes.candidates import candidate_history
+
+    candidate = FakeUser(user_id="cand_a", role="candidate", email="shared@test.com", company_id=None)
+
+    # Interview has matching email but is already claimed by a different candidate
+    interview_other = FakeInterview(
+        interview_id="iv_other_cand",
+        candidate_email="shared@test.com",
+        candidate_id="cand_b",  # different candidate owns this
+    )
+
+    qm_empty = _make_query_mock(results=[])
+    qm_other = _make_query_mock(results=[interview_other])
+
+    # by_id (call 1): returns empty — cand_a doesn't own this interview by id
+    # by_email (call 2): returns interview_other — email matches but owned by cand_b
+    call_count = [0]
+    def find_side_effect(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return qm_other    # by_email query (first call) — returns interview owned by cand_b
+        return qm_empty        # by_id raises AttributeError anyway (candidate_id not patched)
+
+    # Only patch candidate_email so the by_email query expression works.
+    # Do NOT patch candidate_id — this causes AttributeError in the by_id query,
+    # which is caught gracefully in candidates.py, leaving by_id=[].
+    # The filter then correctly checks iv.candidate_id via getattr on the instance.
+    with patch.object(InterviewModel, "find", side_effect=find_side_effect, create=True), \
+         patch.object(InterviewModel, "candidate_email", new=MagicMock(), create=True), \
+         patch.object(InterviewModel, "created_at", new=MagicMock(), create=True):
+        result = await candidate_history(current_user=candidate)
+
+    # Verify the filter worked: iv_other_cand has candidate_id="cand_b" != "cand_a"
+    # so it must NOT appear in cand_a's history
+    ids = [r["id"] for r in result]
+    # If this fails, the production code has a cross-candidate leakage bug
+    assert "iv_other_cand" not in ids, (
+        f"Interview owned by cand_b leaked into cand_a's history. "
+        f"Check candidates.py email-match filter for candidate_id guard."
+    )

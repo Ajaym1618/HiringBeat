@@ -61,3 +61,10 @@ def validate_org_name(cls, v: str) -> str:
     if len(v.strip()) > 100:
         raise ValueError("Organization name must be 100 characters or less")
     return v.strip()
+
+
+def validate_pan(cls, v: str) -> str:
+    """Validate Indian PAN format: 5 uppercase letters, 4 digits, 1 uppercase letter."""
+    if not v or not re.match(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$', v.strip().upper()):
+        raise ValueError("Invalid PAN format. Expected format: ABCDE1234F")
+    return v.strip().upper()

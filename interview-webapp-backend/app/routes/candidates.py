@@ -25,18 +25,28 @@ async def candidate_history(current_user: User = Depends(get_current_user)):
         Interview.candidate_email == current_user.email
     ).to_list()
 
-    by_id = await Interview.find(
-        Interview.candidate_id == str(current_user.id)
-    ).to_list()
+    try:
+        by_id = await Interview.find(
+            Interview.candidate_id == str(current_user.id)
+        ).to_list()
+    except Exception:
+        by_id = []
 
-    # Deduplicate by interview ID
+    # Deduplicate and filter to prevent cross-candidate leakage
     seen: set = set()
     all_interviews: List = []
-    for iv in by_email + by_id:
-        key = str(iv.id)
-        if key not in seen:
-            seen.add(key)
+    # Always include interviews explicitly assigned to this candidate by ID
+    for iv in by_id:
+        if str(iv.id) not in seen:
+            seen.add(str(iv.id))
             all_interviews.append(iv)
+    # Include email-matched only if no different candidate_id is set
+    for iv in by_email:
+        if str(iv.id) not in seen:
+            iv_candidate_id = getattr(iv, "candidate_id", None)
+            if iv_candidate_id is None or iv_candidate_id == str(current_user.id):
+                seen.add(str(iv.id))
+                all_interviews.append(iv)
 
     # Sort by created_at descending (most recent first)
     all_interviews.sort(

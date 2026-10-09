@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Literal
 from datetime import datetime
-from app.schemas.validators import validate_email, validate_password, validate_name, validate_org_name
+from app.schemas.validators import validate_email, validate_password, validate_name, validate_org_name, validate_pan
 
 
 class OrgRegisterRequest(BaseModel):
@@ -22,7 +22,7 @@ class OrgRegisterRequest(BaseModel):
 
     # New optional fields (GAP 1)
     registration_number: Optional[str] = None
-    pan: Optional[str] = None
+    pan: str
     gstin: Optional[str] = None
     website: Optional[str] = None
 
@@ -31,6 +31,7 @@ class OrgRegisterRequest(BaseModel):
     _validate_manager_email = field_validator("manager_email", mode="before")(classmethod(validate_email))
     _validate_password = field_validator("password", mode="before")(classmethod(validate_password))
     _validate_auth_email = field_validator("authorized_person_email", mode="before")(classmethod(validate_email))
+    _validate_pan = field_validator("pan", mode="before")(classmethod(validate_pan))
 
 
 class RejectOrgRequest(BaseModel):

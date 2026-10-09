@@ -14,7 +14,9 @@ from app.models.user import User
 from app.models.company import Company
 from app.core.subscription import enforce_interview_limit
 from app.socket_events import sio
+from bson import ObjectId
 from bson.errors import InvalidId
+from bson import ObjectId
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
@@ -110,9 +112,18 @@ async def get_by_code(
                     status_code=403,
                     detail="This interview is not assigned to your account",
                 )
-            # Safe to associate
+            # Atomic conditional update — only set if candidate_id is still None
+            result = await Interview.get_motor_collection().find_one_and_update(
+                {
+                    "_id": ObjectId(str(interview.id)),
+                    "candidate_id": None,  # only update if still unclaimed
+                },
+                {"$set": {"candidate_id": str(current_user.id)}},
+            )
+            if result is None:
+                # Another request claimed it first
+                raise HTTPException(409, "This interview was just claimed by another candidate")
             interview.candidate_id = str(current_user.id)
-            await interview.save()
 
     return {"id": str(interview.id), "title": interview.title, "status": interview.status, "interview_code": code}
 

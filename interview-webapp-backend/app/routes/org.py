@@ -47,6 +47,41 @@ def _validate_magic_bytes(content: bytes, filename: str) -> None:
     )
 
 
+# Map each allowed extension to its expected magic bytes
+EXTENSION_SIGNATURES = {
+    ".pdf": [b"%PDF"],
+    ".jpg": [b"\xff\xd8\xff"],
+    ".jpeg": [b"\xff\xd8\xff"],
+    ".png": [b"\x89PNG\r\n\x1a\n"],
+}
+
+
+def _validate_file_strict(content: bytes, filename: str) -> None:
+    """Validate that file content matches the declared extension's expected signature.
+
+    Rejects:
+    - Empty files
+    - Files whose content signature does not match the extension
+    - Extensions not in the allowlist
+    """
+    if not content:
+        raise HTTPException(status_code=422, detail=f"Empty file not allowed: {filename}")
+
+    ext = os.path.splitext(filename or "")[1].lower()
+    expected_sigs = EXTENSION_SIGNATURES.get(ext)
+    if not expected_sigs:
+        raise HTTPException(status_code=422, detail=f"Extension not allowed: {ext}")
+
+    for sig in expected_sigs:
+        if content[:len(sig)] == sig:
+            return
+
+    raise HTTPException(
+        status_code=422,
+        detail=f"File content does not match extension {ext}: {filename}",
+    )
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("20/hour")
 async def register_org(request: Request, body: OrgRegisterRequest):
@@ -159,7 +194,7 @@ async def upload_org_documents(
         if len(content) > MAX_FILE_SIZE_BYTES:
             raise HTTPException(status_code=413, detail=f"File too large: {f.filename} (max 10MB)")
         # Validate actual file content via magic bytes
-        _validate_magic_bytes(content, f.filename or "")
+        _validate_file_strict(content, f.filename or "")
         file_contents.append(content)
 
     # Save files and create OrgDocument records — clean up on any failure
