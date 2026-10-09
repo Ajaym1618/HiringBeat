@@ -112,6 +112,8 @@ async def remove_team_member(
         raise HTTPException(status_code=404, detail="User not found")
     if user.company_id != current_user.company_id:
         raise HTTPException(status_code=403, detail="Cannot remove user from another company")
+    # Removal is permitted regardless of subscription/verification status.
+    # Cleanup operations must not be blocked during pending or suspended states.
     await user.delete()
 
 
@@ -132,6 +134,17 @@ async def update_team_member_role(
     # Cross-company guard (FR-8.2)
     if target.company_id != current_user.company_id:
         raise HTTPException(status_code=403, detail="User belongs to a different company")
+
+    # Subscription limit check for role promotion
+    try:
+        company = await Company.get(current_user.company_id)
+    except Exception:
+        company = None
+    if company:
+        if body.role == "company_manager" and target.role != "company_manager":
+            await enforce_admin_limit(company)
+        elif body.role == "recruiter" and target.role != "recruiter":
+            await enforce_recruiter_limit(company)
 
     # Last-manager guard (FR-8.4): only applies when demoting a company_manager
     if target.role == "company_manager" and body.role == "recruiter":
