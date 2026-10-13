@@ -11,7 +11,20 @@ from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
 from app.socket_events import sio
-from app.routes import auth, interviews, monitoring, detection, media, device, face_verify, admin, company, org, candidates
+from app.routes import (
+    auth,
+    interviews,
+    monitoring,
+    detection,
+    media,
+    device,
+    face_verify,
+    admin,
+    company,
+    org,
+    candidates,
+    content,
+)
 
 
 @asynccontextmanager
@@ -114,6 +127,7 @@ app.include_router(admin.router)
 app.include_router(company.router)
 app.include_router(org.router)
 app.include_router(candidates.router)
+app.include_router(content.router)
 
 # ── Socket.IO ─────────────────────────────────────────────────────────────────
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

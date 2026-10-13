@@ -12,6 +12,7 @@ from app.models.build_job import BuildJob
 from app.models.org_document import OrgDocument
 from app.models.subscription_plan import SubscriptionPlan
 from app.seed_plans import seed_subscription_plans
+from app.models.website_content import WebsiteContent
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ async def init_db():
             database=client[settings.DB_NAME],
             document_models=[
                 User, Company, Interview, ActivityLog, DeviceLink,
-                AppConfig, BuildJob, OrgDocument, SubscriptionPlan,
+                AppConfig, BuildJob, OrgDocument, SubscriptionPlan,WebsiteContent,
             ],
         )
         print("✅ Beanie ODM initialized — all models ready")
