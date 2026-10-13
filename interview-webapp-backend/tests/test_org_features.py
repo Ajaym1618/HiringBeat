@@ -767,6 +767,7 @@ async def test_recruiter_limit_enforced_returns_403():
     company.subscription_expires_at = None
 
     fake_plan = MagicMock()
+    fake_plan.status = "active"
     fake_plan.max_recruiters = 2
     fake_plan.max_admins = 3
 
@@ -805,6 +806,7 @@ async def test_admin_limit_enforced_returns_403():
     company.subscription_expires_at = None
 
     fake_plan = MagicMock()
+    fake_plan.status = "active"
     fake_plan.max_admins = 1
     fake_plan.max_recruiters = 5
 
@@ -847,6 +849,7 @@ async def test_interview_limit_enforced_returns_403():
     company.subscription_expires_at = None
 
     fake_plan = MagicMock()
+    fake_plan.status = "active"
     fake_plan.max_interviews = 5
 
     body = CreateInterviewRequest(title="Interview Overflow")
