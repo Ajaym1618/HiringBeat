@@ -241,6 +241,12 @@ async def upload_org_documents(
             detail="document_types count must match documents count.",
         )
 
+    if len(set(doc_types)) != len(doc_types):
+        raise HTTPException(
+            status_code=422,
+            detail="Duplicate document types are not allowed.",
+        )    
+
     for document_type in doc_types:
         if document_type not in VALID_DOC_TYPES:
             raise HTTPException(

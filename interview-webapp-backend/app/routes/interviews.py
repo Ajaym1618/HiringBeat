@@ -16,7 +16,6 @@ from app.core.subscription import enforce_interview_limit
 from app.socket_events import sio
 from bson import ObjectId
 from bson.errors import InvalidId
-from bson import ObjectId
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
