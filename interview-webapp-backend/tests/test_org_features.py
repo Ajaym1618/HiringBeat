@@ -1112,9 +1112,9 @@ async def test_update_role_cross_company():
 
 @pytest.mark.asyncio
 async def test_admin_companies_returns_all_statuses():
-    """GET /api/admin/companies must return companies of ALL statuses including
+    """GET /api/admin/orgs must return organizations of ALL statuses including
     pending_verification and rejected — intentional behaviour, not a bug (FIX 3)."""
-    from app.routes.admin import list_companies
+    from app.routes.admin import list_all_orgs
 
     admin_user = FakeUser(user_id="admin1", role="super_admin", company_id=None)
     companies = [
@@ -1126,8 +1126,9 @@ async def test_admin_companies_returns_all_statuses():
 
     qm = _make_query_mock(results=companies)
 
-    with patch.object(CompanyModel, "find_all", return_value=qm, create=True):
-        result = await list_companies(current_user=admin_user)
+    with patch.object(CompanyModel, "find_all", return_value=qm, create=True), \
+         patch.object(UserModel, "find_one", new_callable=AsyncMock, return_value=None, create=True):
+        result = await list_all_orgs(current_user=admin_user)
 
     statuses = {r["status"] for r in result}
     assert "pending_verification" in statuses, "pending_verification orgs must appear in admin list"

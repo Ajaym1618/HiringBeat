@@ -11,7 +11,6 @@ from app.models.interview import Interview
 from app.models.org_document import OrgDocument
 from app.models.subscription_plan import SubscriptionPlan
 from app.schemas.admin import CreateRecruiterRequest, UpdateAppConfigRequest
-from app.schemas.company import CreateCompanyRequest, PatchCompanyRequest
 from app.schemas.org import RejectOrgRequest, PatchSubscriptionRequest
 from app.core.auth import get_current_user, hash_password
 from app.core.permissions import require_super_admin
@@ -51,41 +50,6 @@ async def update_app_config(
         await config.insert()
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     await config.set(update_data)
-    return {"updated": True}
-
-
-# --- Companies ---
-@router.get("/companies")
-async def list_companies(current_user: User = Depends(get_current_user)):
-    # Returns companies of all statuses including pending_verification and rejected.
-    require_super_admin(current_user)
-    companies = await Company.find_all().to_list()
-    return [{"id": str(c.id), "name": c.name, "status": c.status} for c in companies]
-
-
-@router.post("/companies", status_code=201)
-async def create_company(
-    body: CreateCompanyRequest, current_user: User = Depends(get_current_user)
-):
-    require_super_admin(current_user)
-    company = Company(name=body.name, status=body.status)
-    await company.insert()
-    return {"id": str(company.id), "name": company.name}
-
-
-@router.patch("/companies/{company_id}")
-async def patch_company(
-    company_id: str,
-    body: PatchCompanyRequest,
-    current_user: User = Depends(get_current_user),
-):
-    require_super_admin(current_user)
-    company = await Company.get(company_id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
-    if update_data:
-        await company.set(update_data)
     return {"updated": True}
 
 

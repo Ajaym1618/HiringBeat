@@ -48,4 +48,4 @@ class Company(Document):
         super().__init__(**data)
 
     class Settings:
-        name = "companies"
+        name = "organizations"
