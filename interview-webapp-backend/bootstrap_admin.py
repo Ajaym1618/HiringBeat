@@ -14,7 +14,6 @@ import asyncio
 import sys
 import os
 
-# Add the project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -27,11 +26,12 @@ from app.models.activity_log import ActivityLog
 from app.models.device_link import DeviceLink
 from app.models.app_config import AppConfig
 from app.models.build_job import BuildJob
+from app.models.org_document import OrgDocument
+from app.models.subscription_plan import SubscriptionPlan
 import bcrypt
 
 
 async def bootstrap():
-    # Connect to MongoDB
     print("\n🔌 Connecting to MongoDB...")
     client = AsyncIOMotorClient(settings.MONGO_URI)
 
@@ -42,10 +42,13 @@ async def bootstrap():
         print(f"❌ MongoDB connection failed: {e}")
         return
 
-    # Initialize Beanie
     await init_beanie(
         database=client[settings.DB_NAME],
-        document_models=[User, Company, Interview, ActivityLog, DeviceLink, AppConfig, BuildJob],
+        document_models=[
+            User, Company, Interview, ActivityLog,
+            DeviceLink, AppConfig, BuildJob,
+            OrgDocument, SubscriptionPlan,
+        ],
     )
 
     # Check if super_admin already exists
@@ -55,7 +58,6 @@ async def bootstrap():
         print("No changes made. Delete the existing super_admin first if you want to recreate it.")
         return
 
-    # Get credentials from user input
     print("\n👤 Creating Super Admin Account")
     print("-" * 35)
     name = input("Name: ").strip()
@@ -63,17 +65,15 @@ async def bootstrap():
     password = input("Password: ").strip()
 
     if not name or not email or not password:
-        print("All fields are required.")
+        print("❌ All fields are required.")
         return
 
     if len(password) < 8:
-        print("Password must be at least 8 characters.")
+        print("❌ Password must be at least 8 characters.")
         return
 
-    # Hash password
     password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-    # Create super_admin user
     admin = User(
         email=email,
         password_hash=password_hash,
@@ -82,12 +82,12 @@ async def bootstrap():
     )
     await admin.insert()
 
-    print(f"\n✅ Super admin created successfully!")
+    print(f"\n✅ Super admin created!")
     print(f"   Name  : {name}")
     print(f"   Email : {email}")
     print(f"   Role  : super_admin")
-    print(f"\n🚀 You can now log in at POST /api/auth/login")
-    print(f"   Body: {{ \"email\": \"{email}\", \"password\": \"<your password>\", \"role\": \"super_admin\" }}")
+    print(f"\n🚀 Login at POST /api/auth/login")
+    print(f'   Body: {{"email": "{email}", "password": "<your password>", "role": "super_admin"}}')
 
 
 if __name__ == "__main__":
