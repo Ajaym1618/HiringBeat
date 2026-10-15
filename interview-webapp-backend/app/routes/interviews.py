@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from app.models.interview import Interview
+from app.models.device_link import DeviceLink
 from app.models.activity_log import ActivityLog
 from app.schemas.interview import CreateInterviewRequest, InterviewOut
 from app.core.auth import get_current_user
@@ -125,6 +126,44 @@ async def get_by_code(
             interview.candidate_id = str(current_user.id)
 
     return {"id": str(interview.id), "title": interview.title, "status": interview.status, "interview_code": code}
+
+
+@router.get("/join/{code}")
+async def join_interview(code: str):
+    """Combined candidate initialization endpoint.
+
+    Returns interview details + device link status in one request.
+    Public — no JWT required (candidate joins by code).
+    Does NOT include sensitive data: no recruiter_id, face_reference_path,
+    company details, subscription info, or internal IDs beyond what's needed.
+    """
+    # 1. Look up interview by code
+    interview = await Interview.find_one(Interview.interview_code == code)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+    # 2. Get device link status if exists
+    device_link = await DeviceLink.find_one(DeviceLink.interview_id == str(interview.id))
+    device_status = None
+    if device_link:
+        device_status = {
+            "required": device_link.required,
+            "verified": device_link.verified,
+            "paused": device_link.paused,
+            "last_attempt_ok": device_link.last_attempt_ok,
+        }
+
+    return {
+        "interview": {
+            "id": str(interview.id),
+            "interview_code": interview.interview_code,
+            "title": interview.title,
+            "status": interview.status,
+            "candidate_name": interview.candidate_name,
+            "scheduled_at": interview.scheduled_at,
+        },
+        "device_link": device_status,
+    }
 
 
 @router.get("/{interview_id}")

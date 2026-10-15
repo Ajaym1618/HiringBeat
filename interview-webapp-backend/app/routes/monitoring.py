@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 from app.models.activity_log import ActivityLog
 from app.models.interview import Interview
 from app.core.auth import get_current_user
@@ -24,6 +24,63 @@ class AlertRequest(BaseModel):
     phone_detected: Optional[bool] = None
     confidence: Optional[float] = None
     image_path: Optional[str] = None
+
+
+class BatchAlertRequest(BaseModel):
+    alerts: List[AlertRequest]
+
+
+@router.post("/alerts")  # plural — batch version
+async def post_alerts_batch(body: BatchAlertRequest):
+    """Batch monitoring alert ingestion. Max 10 alerts per request.
+
+    Processes all valid alerts, collects errors for invalid ones.
+    Each valid alert is persisted and emits a Socket.IO detection_alert event.
+    """
+    if len(body.alerts) > 10:
+        raise HTTPException(
+            status_code=422,
+            detail="Batch limit exceeded: maximum 10 alerts per request",
+        )
+
+    processed = 0
+    errors = []
+
+    for i, alert in enumerate(body.alerts):
+        try:
+            interview = await Interview.find_one(Interview.interview_code == alert.interview_code)
+            if not interview:
+                errors.append({"index": i, "error": f"Interview not found: {alert.interview_code}"})
+                continue
+
+            log = ActivityLog(
+                interview_id=str(interview.id),
+                event_type=alert.event_type,
+                description=alert.description,
+                face_count=alert.face_count,
+                hand_count=alert.hand_count,
+                phone_detected=alert.phone_detected,
+                confidence=alert.confidence,
+                image_path=alert.image_path,
+            )
+            await log.insert()
+
+            await sio.emit(
+                "detection_alert",
+                {
+                    "event_type": alert.event_type,
+                    "description": alert.description,
+                    "face_count": alert.face_count,
+                    "phone_detected": alert.phone_detected,
+                    "confidence": alert.confidence,
+                },
+                room=alert.interview_code,
+            )
+            processed += 1
+        except Exception as e:
+            errors.append({"index": i, "error": str(e)})
+
+    return {"processed": processed, "errors": errors}
 
 
 @router.post("/alert")

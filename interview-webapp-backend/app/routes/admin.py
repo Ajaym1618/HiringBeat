@@ -342,7 +342,7 @@ async def get_org_detail(
     return out
 
 
-@router.post("/orgs/{company_id}/approve")
+@router.patch("/orgs/{company_id}/approve")
 async def approve_org(
     company_id: str,
     current_user: User = Depends(get_current_user),
@@ -383,16 +383,7 @@ async def approve_org(
     return _company_out(company)
 
 
-@router.patch("/orgs/{company_id}/approve")
-async def approve_org_patch(
-    company_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """PATCH alias for approve_org — same logic."""
-    return await approve_org(company_id=company_id, current_user=current_user)
-
-
-@router.post("/orgs/{company_id}/reject")
+@router.patch("/orgs/{company_id}/reject")
 async def reject_org(
     company_id: str,
     body: RejectOrgRequest,
@@ -413,16 +404,6 @@ async def reject_org(
         await company.sync()
 
     return _company_out(company)
-
-
-@router.patch("/orgs/{company_id}/reject")
-async def reject_org_patch(
-    company_id: str,
-    body: RejectOrgRequest,
-    current_user: User = Depends(get_current_user),
-):
-    """PATCH alias for reject_org — same logic."""
-    return await reject_org(company_id=company_id, body=body, current_user=current_user)
 
 
 @router.patch("/orgs/{company_id}/subscription")
