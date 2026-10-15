@@ -1,265 +1,304 @@
-{
-  "navbar": {
-    "logo": "Interbeat",
-    "links": [
-      { "href": "#features", "label": "Features" },
-      { "href": "#score", "label": "Score" },
-      { "href": "#roles", "label": "Roles" },
-      { "href": "#platform", "label": "Platform" },
-      { "href": "#pricing", "label": "Pricing" }
-    ],
-    "cta": { "label": "Book a demo", "href": "#contact", "plan": "Demo request" }
-  },
-  "hero": {
-    "badge": "AI-powered remote proctoring",
-    "title1": "Interviews you",
-    "title2": "can trust.",
-    "subtitle": "Interbeat watches the screen, the room and the person, so recruiters can focus on the conversation.",
-    "cta1": { "label": "Book a demo", "href": "#contact", "plan": "Demo request" },
-    "cta2": { "label": "See what it detects ›", "href": "#features" },
-    "sidePanel": {
-      "confidenceLabel": "confidence",
-      "nextFaceCheck": "Next face check",
-      "devices": "Devices",
-      "kioskLock": "Kiosk lock",
-      "phoneFlagged": "Phone flagged",
-      "clear": "Clear",
-      "active": "Active"
+[
+  {
+    "section": "navbar",
+    "content": {
+      "logo": "Interbeat",
+      "links": [
+        { "href": "#features", "label": "Features" },
+        { "href": "#score", "label": "Score" },
+        { "href": "#roles", "label": "Roles" },
+        { "href": "#platform", "label": "Platform" },
+        { "href": "#pricing", "label": "Pricing" }
+      ],
+      "cta": { "label": "Book a demo", "href": "#contact", "plan": "Demo request" }
     }
   },
-  "features": {
-    "badge": "One platform, four jobs",
-    "title": "Everything an honest interview needs.",
-    "items": [
-      {
-        "title": "Live video",
-        "description": "Peer-to-peer WebRTC. Video flows straight from candidate to recruiter, so it stays fast."
-      },
-      {
-        "title": "Computer-vision detection",
-        "description": "Faces, hands and phones, checked on sampled frames to keep the load light."
-      },
-      {
-        "title": "Device telemetry",
-        "description": "USB, Bluetooth, Wi-Fi, cameras, monitors and running apps from the candidate's PC."
-      },
-      {
-        "title": "Kiosk lockdown",
-        "description": "A native desktop window that browsers can't match: it sees the whole screen and locks the exam down."
+  {
+    "section": "hero",
+    "content": {
+      "badge": "AI-powered remote proctoring",
+      "title1": "Interviews you",
+      "title2": "can trust.",
+      "subtitle": "Interbeat watches the screen, the room and the person, so recruiters can focus on the conversation.",
+      "cta1": { "label": "Book a demo", "href": "#contact", "plan": "Demo request" },
+      "cta2": { "label": "See what it detects ›", "href": "#features" },
+      "sidePanel": {
+        "confidenceLabel": "confidence",
+        "nextFaceCheck": "Next face check",
+        "devices": "Devices",
+        "kioskLock": "Kiosk lock",
+        "phoneFlagged": "Phone flagged",
+        "clear": "Clear",
+        "active": "Active"
       }
-    ]
+    }
   },
-  "aiDetection": {
-    "badge": "AI detection",
-    "title": "Three models. Three different questions.",
-    "items": [
-      {
-        "code": "YOLOv8",
-        "question": "Who and what is in frame?",
-        "description": "Flags zero faces, more than one face, and a phone in view."
-      },
-      {
-        "code": "MediaPipe",
-        "question": "What are the hands doing?",
-        "description": "Catches a hand lingering near the face or mouth."
-      },
-      {
-        "code": "InsightFace",
-        "question": "Is it the same person?",
-        "description": "Matches live frames against a reference photo, re-checked every 5 minutes."
-      }
-    ]
-  },
-  "deviceTelemetry": {
-    "badge": "Device telemetry",
-    "title": "See the hardware, the moment it changes.",
-    "description": "A small agent on the candidate's PC reports what's connected. The recruiter's device page refreshes every 5 seconds and shows a red badge when anything changes.",
-    "chips": ["USB", "Bluetooth", "Wi-Fi", "Cameras", "Monitors", "Running apps", "Browser tabs"],
-    "statuses": ["Never joined", "App closed", "Live"],
-    "listLabels": {
-      "deviceDetails": "Device details",
-      "changed": "changed",
-      "new": "New",
-      "ok": "OK"
-    },
-    "baseDevices": [
-      ["Laptop camera", "Camera"],
-      ["Built-in display", "Monitor"],
-      ["Home Wi-Fi", "Wi-Fi"]
-    ],
-    "extraDevices": [
-      ["USB flash drive", "USB"],
-      ["Bluetooth earbuds", "Bluetooth"],
-      ["Second monitor", "Monitor"]
-    ]
-  },
-  "kioskLockdown": {
-    "badge": "Kiosk lockdown",
-    "title": "A browser tab can't do this.",
-    "features": [
-      {
-        "title": "Native Electron window",
-        "description": "Blocks what a tab can't: alt-tab, extra monitors and background apps. Bundles the device agent and launches it on join."
-      },
-      {
-        "title": "Hard to reverse-engineer",
-        "description": "The desktop client is obfuscated and the agent is compiled to native code with Nuitka."
-      },
-      {
-        "title": "Windows and macOS",
-        "description": "One codebase builds both installers."
-      }
-    ],
-    "steps": [
-      { "title": "1. Set URLs", "description": "Public URL in the env file" },
-      { "title": "2. Create App", "description": "Super admin clicks one button" },
-      { "title": "3. Config built", "description": "config.js regenerated" },
-      { "title": "4. Installer ready", "description": "Background build, admin-only download" }
-    ]
-  },
-  "confidenceScore": {
-    "badge": "Confidence score",
-    "title": "One number the recruiter watches.",
-    "description": "It starts at 100 when the recruiter presses Start. Every integrity signal lowers it, and each cause has its own cap. Try it.",
-    "resetButton": "Reset to 100",
-    "note": "Penalty and cap values here are for demonstration.",
-    "signals": [
-      { "name": "Phone or extra face", "source": "YOLOv8", "penalty": 8, "cap": 24 },
-      { "name": "Face mismatch", "source": "InsightFace", "penalty": 15, "cap": 30 },
-      { "name": "USB plugged or unplugged", "source": "Device agent", "penalty": 5, "cap": 15 },
-      { "name": "Lost window focus", "source": "Kiosk app", "penalty": 3, "cap": 12 },
-      { "name": "Extra display connected", "source": "Kiosk app", "penalty": 6, "cap": 12 },
-      { "name": "Restricted app running", "source": "Kiosk app", "penalty": 6, "cap": 18 },
-      { "name": "Screen capture stopped", "source": "Kiosk app", "penalty": 10, "cap": 20 },
-      { "name": "Hand near face", "source": "MediaPipe", "penalty": 4, "cap": 12 }
-    ]
-  },
-  "realTimeAlerts": {
-    "badge": "Real-time alerts",
-    "title": "No polling. Alerts arrive as they happen.",
-    "description": "Each interview is a room keyed by its join code. Detection, device and identity events stream to the recruiter's live monitor over Socket.IO, next to chat and the video feed.",
-    "events": [
-      { "code": "interview_started", "msg": "Recruiter pressed Start" },
-      { "code": "face_verification", "msg": "Identity matched reference photo" },
-      { "code": "detection_alert", "msg": "Phone detected in frame" },
-      { "code": "device_usb_alert", "msg": "USB device plugged in" },
-      { "code": "face_verification", "msg": "Face mismatch, penalty applied" },
-      { "code": "detection_alert", "msg": "More than one face in frame" },
-      { "code": "device_usb_alert", "msg": "USB device removed" }
-    ]
-  },
-  "rolesAndCompanies": {
-    "badge": "Roles and companies",
-    "title": "Licensed to companies. Safe by design.",
-    "permissionsNote": "Permissions are enforced on the server, not just hidden in the screen.",
-    "rolesData": {
-      "Candidate": [
-        "Joins by code through the kiosk desktop app",
-        "The only role that can self-register",
-        "Identified by name and a one-time join token",
-        "Verified against a reference photo before the exam proceeds"
-      ],
-      "Recruiter": [
-        "Created only by their own company manager",
-        "Creates, starts, ends and monitors interviews live",
-        "Sees every interview at their own company",
-        "The only role that can operate an interview"
-      ],
-      "Company manager": [
-        "One lead HR per client, created by the super admin",
-        "Adds recruiter accounts from a Team tab",
-        "Sees every company interview, read-only",
-        "Cannot start, end or delete interviews, or open live monitor"
-      ],
-      "Super admin": [
-        "Bootstrapped once by a script, never through the UI",
-        "Controls branding, companies and first accounts",
-        "Rebuilds and downloads the desktop installer",
-        "The only account that can create companies or see across them"
+  {
+    "section": "features",
+    "content": {
+      "badge": "One platform, four jobs",
+      "title": "Everything an honest interview needs.",
+      "items": [
+        {
+          "title": "Live video",
+          "description": "Peer-to-peer WebRTC. Video flows straight from candidate to recruiter, so it stays fast."
+        },
+        {
+          "title": "Computer-vision detection",
+          "description": "Faces, hands and phones, checked on sampled frames to keep the load light."
+        },
+        {
+          "title": "Device telemetry",
+          "description": "USB, Bluetooth, Wi-Fi, cameras, monitors and running apps from the candidate's PC."
+        },
+        {
+          "title": "Kiosk lockdown",
+          "description": "A native desktop window that browsers can't match: it sees the whole screen and locks the exam down."
+        }
       ]
-    },
-    "facts": [
-      { "title": "Own login per role", "description": "Recruiter, company and admin each sign in on their own page." },
-      { "title": "Company isolation", "description": "A recruiter never sees another company's data." },
-      { "title": "Live branding", "description": "App name, logo and about text change instantly, no rebuild." },
-      { "title": "One switch", "description": "Deactivate a company and every login there is blocked." }
-    ]
+    }
   },
-  "platform": {
-    "badge": "Platform",
-    "title": "Four services. One door.",
-    "subtitle": "Heavy AI scales apart from light telemetry, and a single tunnel exposes the whole app.",
-    "features": [
-      { "title": "bcrypt + JWT", "description": "Hashed passwords, signed tokens that expire after 24 hours, checked per resource." },
-      { "title": "Rate limiting", "description": "Login and register are capped per IP against brute force." },
-      { "title": "Dashboard key", "description": "Candidate device data can't be read by anyone with the URL." },
-      { "title": "Signed bridge", "description": "Services trust each other with a shared secret, compared in constant time." },
-      { "title": "Secrets in env", "description": "The app refuses to start in production on placeholder values." },
-      { "title": "PostgreSQL only", "description": "Built for many recruiters and candidates at once. No silent local fallback." }
-    ]
+  {
+    "section": "aiDetection",
+    "content": {
+      "badge": "AI detection",
+      "title": "Three models. Three different questions.",
+      "items": [
+        {
+          "code": "YOLOv8",
+          "question": "Who and what is in frame?",
+          "description": "Flags zero faces, more than one face, and a phone in view."
+        },
+        {
+          "code": "MediaPipe",
+          "question": "What are the hands doing?",
+          "description": "Catches a hand lingering near the face or mouth."
+        },
+        {
+          "code": "InsightFace",
+          "question": "Is it the same person?",
+          "description": "Matches live frames against a reference photo, re-checked every 5 minutes."
+        }
+      ]
+    }
   },
-  "pricing": {
-    "badge": "Pricing",
-    "title": "Licensed per company.",
-    "subtitle": "Every plan includes kiosk lockdown, device telemetry and AI detection.",
-    "toggle": { "monthly": "Monthly", "yearly": "Yearly, 2 months free" },
-    "plans": [
-      {
-        "name": "Starter",
-        "description": "Small teams, first rollout.",
-        "priceMonthly": "4,999",
-        "priceYearly": "49,990",
-        "features": [
-          "Up to 50 interviews a month",
-          "Confidence score and alerts",
-          "Activity log and Evidence tab",
-          "Email support"
-        ],
-        "cta": "Request license",
-        "isHot": false
+  {
+    "section": "deviceTelemetry",
+    "content": {
+      "badge": "Device telemetry",
+      "title": "See the hardware, the moment it changes.",
+      "description": "A small agent on the candidate's PC reports what's connected. The recruiter's device page refreshes every 5 seconds and shows a red badge when anything changes.",
+      "chips": ["USB", "Bluetooth", "Wi-Fi", "Cameras", "Monitors", "Running apps", "Browser tabs"],
+      "statuses": ["Never joined", "App closed", "Live"],
+      "listLabels": {
+        "deviceDetails": "Device details",
+        "changed": "changed",
+        "new": "New",
+        "ok": "OK"
       },
-      {
-        "name": "Growth",
-        "description": "Teams hiring every week.",
-        "priceMonthly": "14,999",
-        "priceYearly": "149,990",
-        "features": [
-          "Up to 250 interviews a month",
-          "Company-wide dashboard",
-          "Company manager, read-only",
-          "Live monitor with device details"
+      "baseDevices": [
+        ["Laptop camera", "Camera"],
+        ["Built-in display", "Monitor"],
+        ["Home Wi-Fi", "Wi-Fi"]
+      ],
+      "extraDevices": [
+        ["USB flash drive", "USB"],
+        ["Bluetooth earbuds", "Bluetooth"],
+        ["Second monitor", "Monitor"]
+      ]
+    }
+  },
+  {
+    "section": "kioskLockdown",
+    "content": {
+      "badge": "Kiosk lockdown",
+      "title": "A browser tab can't do this.",
+      "features": [
+        {
+          "title": "Native Electron window",
+          "description": "Blocks what a tab can't: alt-tab, extra monitors and background apps. Bundles the device agent and launches it on join."
+        },
+        {
+          "title": "Hard to reverse-engineer",
+          "description": "The desktop client is obfuscated and the agent is compiled to native code with Nuitka."
+        },
+        {
+          "title": "Windows and macOS",
+          "description": "One codebase builds both installers."
+        }
+      ],
+      "steps": [
+        { "title": "1. Set URLs", "description": "Public URL in the env file" },
+        { "title": "2. Create App", "description": "Super admin clicks one button" },
+        { "title": "3. Config built", "description": "config.js regenerated" },
+        { "title": "4. Installer ready", "description": "Background build, admin-only download" }
+      ]
+    }
+  },
+  {
+    "section": "confidenceScore",
+    "content": {
+      "badge": "Confidence score",
+      "title": "One number the recruiter watches.",
+      "description": "It starts at 100 when the recruiter presses Start. Every integrity signal lowers it, and each cause has its own cap. Try it.",
+      "resetButton": "Reset to 100",
+      "note": "Penalty and cap values here are for demonstration.",
+      "signals": [
+        { "name": "Phone or extra face", "source": "YOLOv8", "penalty": 8, "cap": 24 },
+        { "name": "Face mismatch", "source": "InsightFace", "penalty": 15, "cap": 30 },
+        { "name": "USB plugged or unplugged", "source": "Device agent", "penalty": 5, "cap": 15 },
+        { "name": "Lost window focus", "source": "Kiosk app", "penalty": 3, "cap": 12 },
+        { "name": "Extra display connected", "source": "Kiosk app", "penalty": 6, "cap": 12 },
+        { "name": "Restricted app running", "source": "Kiosk app", "penalty": 6, "cap": 18 },
+        { "name": "Screen capture stopped", "source": "Kiosk app", "penalty": 10, "cap": 20 },
+        { "name": "Hand near face", "source": "MediaPipe", "penalty": 4, "cap": 12 }
+      ]
+    }
+  },
+  {
+    "section": "realTimeAlerts",
+    "content": {
+      "badge": "Real-time alerts",
+      "title": "No polling. Alerts arrive as they happen.",
+      "description": "Each interview is a room keyed by its join code. Detection, device and identity events stream to the recruiter's live monitor over Socket.IO, next to chat and the video feed.",
+      "events": [
+        { "code": "interview_started", "msg": "Recruiter pressed Start" },
+        { "code": "face_verification", "msg": "Identity matched reference photo" },
+        { "code": "detection_alert", "msg": "Phone detected in frame" },
+        { "code": "device_usb_alert", "msg": "USB device plugged in" },
+        { "code": "face_verification", "msg": "Face mismatch, penalty applied" },
+        { "code": "detection_alert", "msg": "More than one face in frame" },
+        { "code": "device_usb_alert", "msg": "USB device removed" }
+      ]
+    }
+  },
+  {
+    "section": "rolesAndCompanies",
+    "content": {
+      "badge": "Roles and companies",
+      "title": "Licensed to companies. Safe by design.",
+      "permissionsNote": "Permissions are enforced on the server, not just hidden in the screen.",
+      "rolesData": {
+        "Candidate": [
+          "Joins by code through the kiosk desktop app",
+          "The only role that can self-register",
+          "Identified by name and a one-time join token",
+          "Verified against a reference photo before the exam proceeds"
         ],
-        "cta": "Request license",
-        "isHot": true
+        "Recruiter": [
+          "Created only by their own company manager",
+          "Creates, starts, ends and monitors interviews live",
+          "Sees every interview at their own company",
+          "The only role that can operate an interview"
+        ],
+        "Company manager": [
+          "One lead HR per client, created by the super admin",
+          "Adds recruiter accounts from a Team tab",
+          "Sees every company interview, read-only",
+          "Cannot start, end or delete interviews, or open live monitor"
+        ],
+        "Super admin": [
+          "Bootstrapped once by a script, never through the UI",
+          "Controls branding, companies and first accounts",
+          "Rebuilds and downloads the desktop installer",
+          "The only account that can create companies or see across them"
+        ]
       },
-      {
-        "name": "Enterprise",
-        "description": "Agencies, campuses, large employers.",
-        "priceText": "Custom",
-        "features": [
-          "Unlimited interviews",
-          "All four roles, company isolation",
-          "Branded desktop installer",
-          "Custom app name and logo"
-        ],
-        "cta": "Talk to sales",
-        "isHot": false
-      }
-    ],
-    "note": "Prices in INR, excluding GST. Placeholder pricing; our team provisions your company account when you sign up."
+      "facts": [
+        { "title": "Own login per role", "description": "Recruiter, company and admin each sign in on their own page." },
+        { "title": "Company isolation", "description": "A recruiter never sees another company's data." },
+        { "title": "Live branding", "description": "App name, logo and about text change instantly, no rebuild." },
+        { "title": "One switch", "description": "Deactivate a company and every login there is blocked." }
+      ]
+    }
   },
-  "contact": {
-    "badge": "Contact",
-    "title": "Talk to the Interbeat team.",
-    "description": "Tell us how you hire. We'll run a sample interview where you play both candidate and recruiter.",
-    "steps": [
-      { "number": "1", "title": "Send the form", "description": "About a minute." },
-      { "number": "2", "title": "We reply within one working day", "description": "A specialist confirms a time." },
-      { "number": "3", "title": "20-minute live walkthrough", "description": "See detection, telemetry and the score in action." }
-    ]
+  {
+    "section": "platform",
+    "content": {
+      "badge": "Platform",
+      "title": "Four services. One door.",
+      "subtitle": "Heavy AI scales apart from light telemetry, and a single tunnel exposes the whole app.",
+      "features": [
+        { "title": "bcrypt + JWT", "description": "Hashed passwords, signed tokens that expire after 24 hours, checked per resource." },
+        { "title": "Rate limiting", "description": "Login and register are capped per IP against brute force." },
+        { "title": "Dashboard key", "description": "Candidate device data can't be read by anyone with the URL." },
+        { "title": "Signed bridge", "description": "Services trust each other with a shared secret, compared in constant time." },
+        { "title": "Secrets in env", "description": "The app refuses to start in production on placeholder values." },
+        { "title": "PostgreSQL only", "description": "Built for many recruiters and candidates at once. No silent local fallback." }
+      ]
+    }
   },
-  "footer": {
-    "leftText": "Interbeat · Fair interviews, verified.",
-    "rightText": "Monitoring runs only during the interview."
+  {
+    "section": "pricing",
+    "content": {
+      "badge": "Pricing",
+      "title": "Licensed per company.",
+      "subtitle": "Every plan includes kiosk lockdown, device telemetry and AI detection.",
+      "toggle": { "monthly": "Monthly", "yearly": "Yearly, 2 months free" },
+      "plans": [
+        {
+          "name": "Starter",
+          "description": "Small teams, first rollout.",
+          "priceMonthly": "4,999",
+          "priceYearly": "49,990",
+          "features": [
+            "Up to 50 interviews a month",
+            "Confidence score and alerts",
+            "Activity log and Evidence tab",
+            "Email support"
+          ],
+          "cta": "Request license",
+          "isHot": false
+        },
+        {
+          "name": "Growth",
+          "description": "Teams hiring every week.",
+          "priceMonthly": "14,999",
+          "priceYearly": "149,990",
+          "features": [
+            "Up to 250 interviews a month",
+            "Company-wide dashboard",
+            "Company manager, read-only",
+            "Live monitor with device details"
+          ],
+          "cta": "Request license",
+          "isHot": true
+        },
+        {
+          "name": "Enterprise",
+          "description": "Agencies, campuses, large employers.",
+          "priceText": "Custom",
+          "features": [
+            "Unlimited interviews",
+            "All four roles, company isolation",
+            "Branded desktop installer",
+            "Custom app name and logo"
+          ],
+          "cta": "Talk to sales",
+          "isHot": false
+        }
+      ],
+      "note": "Prices in INR, excluding GST. Placeholder pricing; our team provisions your company account when you sign up."
+    }
+  },
+  {
+    "section": "contact",
+    "content": {
+      "badge": "Contact",
+      "title": "Talk to the Interbeat team.",
+      "description": "Tell us how you hire. We'll run a sample interview where you play both candidate and recruiter.",
+      "steps": [
+        { "number": "1", "title": "Send the form", "description": "About a minute." },
+        { "number": "2", "title": "We reply within one working day", "description": "A specialist confirms a time." },
+        { "number": "3", "title": "20-minute live walkthrough", "description": "See detection, telemetry and the score in action." }
+      ]
+    }
+  },
+  {
+    "section": "footer",
+    "content": {
+      "leftText": "Interbeat · Fair interviews, verified.",
+      "rightText": "Monitoring runs only during the interview."
+    }
   }
-}
+]

@@ -15,7 +15,6 @@ CONTENT_FILE = (
     / "content"
     / "website_content.json"
 )
-CONTENT_KEY = "homepage"
 
 
 async def seed_website_content():
@@ -25,11 +24,11 @@ async def seed_website_content():
         )
 
     with CONTENT_FILE.open("r", encoding="utf-8") as file:
-        content = json.load(file)
+        sections = json.load(file)
 
-    if not isinstance(content, dict) or not content:
+    if not isinstance(sections, list) or not sections:
         raise ValueError(
-            "Website content must be a non-empty JSON object."
+            "website_content.json must be a non-empty JSON array of section objects."
         )
 
     client = AsyncIOMotorClient(settings.MONGO_URI)
@@ -44,30 +43,43 @@ async def seed_website_content():
             document_models=[WebsiteContent],
         )
 
-        existing = await WebsiteContent.find_one(
-            {"key": CONTENT_KEY}
-        )
-
         now = datetime.now(timezone.utc)
+        created_count = 0
+        updated_count = 0
 
-        if existing:
-            existing.content = content
-            existing.updated_at = now
-            await existing.save()
-            action = "updated"
-        else:
-            await WebsiteContent(
-                key=CONTENT_KEY,
-                content=content,
-                updated_at=now,
-            ).insert()
-            action = "created"
+        for item in sections:
+            section_name = item.get("section")
+            section_content = item.get("content")
+
+            if not section_name or section_content is None:
+                print(f"  Skipping malformed entry (missing 'section' or 'content'): {item}")
+                continue
+
+            existing = await WebsiteContent.find_one(
+                WebsiteContent.section == section_name
+            )
+
+            if existing:
+                existing.content = section_content
+                existing.updated_at = now
+                await existing.save()
+                updated_count += 1
+                action = "updated"
+            else:
+                await WebsiteContent(
+                    section=section_name,
+                    content=section_content,
+                    created_at=now,
+                    updated_at=now,
+                ).insert()
+                created_count += 1
+                action = "created"
+
+            print(f"  [{action}] section: {section_name}")
 
         print(
-            f"Website content {action} successfully. "
-            f"Database: {settings.DB_NAME}; "
-            f"collection: website_content; "
-            f"sections: {len(content)}"
+            f"\nDone. {created_count} created, {updated_count} updated. "
+            f"Database: {settings.DB_NAME}, collection: sections"
         )
 
     finally:
