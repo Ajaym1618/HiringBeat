@@ -7,7 +7,10 @@ from datetime import datetime, timezone
 class User(Document):
     email: EmailStr
     password_hash: str
-    name: str
+    name: str  # kept for backward compatibility
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
     role: Literal["candidate", "recruiter", "company_manager", "super_admin"]
     company_id: Optional[str] = None
     title: Optional[str] = None

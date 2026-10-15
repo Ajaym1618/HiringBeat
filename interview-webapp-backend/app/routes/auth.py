@@ -23,10 +23,14 @@ async def register(request: Request, body: RegisterRequest):
     existing = await User.find_one(User.email == body.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    full_name = f"{body.first_name} {body.last_name}".strip()
     user = User(
         email=body.email,
         password_hash=hash_password(body.password),
-        name=body.name,
+        name=full_name,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        phone_number=body.phone_number,
         role="candidate",
     )
     await user.insert()
@@ -67,6 +71,9 @@ async def login(request: Request, body: LoginRequest):
         access_token=token,
         role=user.role,
         name=user.name,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        phone_number=user.phone_number,
         user_id=str(user.id),
     )
 
@@ -77,6 +84,9 @@ async def me(current_user: User = Depends(get_current_user)):
         "user_id": str(current_user.id),
         "email": current_user.email,
         "name": current_user.name,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "phone_number": current_user.phone_number,
         "role": current_user.role,
         "company_id": current_user.company_id,
         "title": current_user.title,

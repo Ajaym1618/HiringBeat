@@ -107,12 +107,18 @@ class FakeUser:
         name="Manager",
         role="company_manager",
         company_id="comp1",
+        first_name=None,
+        last_name=None,
+        phone_number=None,
     ):
         self.id = user_id
         self.email = email
         self.name = name
         self.role = role
         self.company_id = company_id
+        self.first_name = first_name
+        self.last_name = last_name
+        self.phone_number = phone_number
 
     async def insert(self):
         return self
