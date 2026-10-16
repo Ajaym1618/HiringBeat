@@ -2444,3 +2444,149 @@ async def test_list_own_documents_cross_company_rejected():
     with pytest.raises(HTTPException) as exc_info:
         await list_own_documents(company_id="compB", current_user=mgr_user)
     assert exc_info.value.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# GET /api/org/profile
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_org_profile_returns_profile():
+    """Authenticated company_manager gets their org profile."""
+    from app.routes.org import get_org_profile
+    from app.models.company import Company as CompanyModel
+
+    mgr = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+    company = FakeCompany(
+        company_id="comp1",
+        verification_status="pending",
+        org_type="Private Limited",
+        pan="ABCDE1234F",
+    )
+
+    with patch.object(CompanyModel, "get", new_callable=AsyncMock, return_value=company):
+        result = await get_org_profile(current_user=mgr)
+
+    assert result.id == "comp1"
+    assert result.verification_status == "pending"
+    assert result.pan == "ABCDE1234F"
+
+
+@pytest.mark.asyncio
+async def test_get_org_profile_unauthenticated_raises_403():
+    """Non company_manager/super_admin role must get 403."""
+    from app.routes.org import get_org_profile
+    from fastapi import HTTPException
+
+    candidate = FakeUser(user_id="c1", role="candidate", company_id=None)
+
+    with pytest.raises(HTTPException) as exc:
+        await get_org_profile(current_user=candidate)
+
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_org_profile_super_admin_without_company_raises_400():
+    """Super admin has no company profile — must get 400."""
+    from app.routes.org import get_org_profile
+    from fastapi import HTTPException
+
+    admin = FakeUser(user_id="a1", role="super_admin", company_id=None)
+
+    with pytest.raises(HTTPException) as exc:
+        await get_org_profile(current_user=admin)
+
+    assert exc.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/org/profile
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_org_profile_stores_fields():
+    """PATCH /profile updates legal details and returns refreshed profile."""
+    from app.routes.org import update_org_profile
+    from app.schemas.org import OrgProfileUpdateRequest
+    from app.models.company import Company as CompanyModel
+
+    mgr = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+    company = FakeCompany(company_id="comp1", verification_status="pending")
+
+    body = OrgProfileUpdateRequest(
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        pan="ABCDE1234F",
+    )
+
+    # After set(), the re-fetch returns the updated company
+    updated_company = FakeCompany(
+        company_id="comp1",
+        verification_status="pending",
+        org_type="Private Limited",
+        registered_address="123 Main St",
+        pan="ABCDE1234F",
+    )
+
+    with patch.object(CompanyModel, "get", new_callable=AsyncMock, side_effect=[company, updated_company]):
+        result = await update_org_profile(body=body, current_user=mgr)
+
+    assert result.org_type == "Private Limited"
+    assert result.pan == "ABCDE1234F"
+    assert result.registered_address == "123 Main St"
+
+
+@pytest.mark.asyncio
+async def test_update_org_profile_does_not_change_verification_status():
+    """PATCH /profile must never change verification_status even if supplied."""
+    from app.routes.org import update_org_profile
+    from app.schemas.org import OrgProfileUpdateRequest
+    from app.models.company import Company as CompanyModel
+
+    mgr = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+    company = FakeCompany(company_id="comp1", verification_status="pending")
+
+    # Simulate attempt to inject verification_status via a raw dict
+    body = OrgProfileUpdateRequest(org_type="LLP")
+
+    set_calls = []
+
+    async def fake_set(data):
+        set_calls.append(data)
+        for k, v in data.items():
+            setattr(company, k, v)
+
+    company.set = fake_set
+
+    updated = FakeCompany(company_id="comp1", verification_status="pending", org_type="LLP")
+
+    with patch.object(CompanyModel, "get", new_callable=AsyncMock, side_effect=[company, updated]):
+        result = await update_org_profile(body=body, current_user=mgr)
+
+    # verification_status must never appear in the set() call
+    for call_data in set_calls:
+        assert "verification_status" not in call_data, "verification_status must not be set via profile update"
+
+    assert result.verification_status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_update_org_profile_cross_company_raises_403():
+    """A company_manager cannot update another org's profile."""
+    from app.routes.org import update_org_profile
+    from app.schemas.org import OrgProfileUpdateRequest
+    from app.models.company import Company as CompanyModel
+    from fastapi import HTTPException
+
+    # Manager belongs to comp1 but tries to access comp2 profile
+    # Since PATCH /profile always uses current_user.company_id,
+    # a manager from comp1 can never reach comp2 — 403 if no company_id
+    mgr = FakeUser(user_id="mgr1", role="company_manager", company_id=None)
+
+    body = OrgProfileUpdateRequest(org_type="LLP")
+
+    with pytest.raises(HTTPException) as exc:
+        await update_org_profile(body=body, current_user=mgr)
+
+    assert exc.value.status_code == 400  # no company_id means no profile

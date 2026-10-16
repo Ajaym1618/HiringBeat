@@ -245,7 +245,8 @@ async def update_org_profile(
 
     if update_data:
         await company.set(update_data)
-        await company.sync()
+        # Re-fetch from DB to guarantee the response reflects the saved state
+        company = await Company.get(str(company.id))
 
     return OrgProfileOut(
         id=str(company.id),
