@@ -24,7 +24,7 @@ from app.models.company import Company
 from app.models.user import User
 from app.models.org_document import OrgDocument
 from app.core.auth import hash_password, get_current_user
-from app.schemas.org import OrgRegisterRequest, OrgDocumentOut
+from app.schemas.org import OrgRegisterRequest, OrgDocumentOut, OrgProfileUpdateRequest, OrgProfileOut
 from app.config import settings
 
 from slowapi import Limiter
@@ -118,20 +118,18 @@ def _validate_magic_bytes(content: bytes, filename: str) -> None:
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("20/hour")
 async def register_org(request: Request, body: OrgRegisterRequest):
-    """Register an organization awaiting Super Admin verification."""
+    """Register an organization. Accepts only 4 fields; verification details submitted separately."""
 
-    existing_user = await User.find_one(
-        User.email == body.manager_email
-    )
-
+    # Check email uniqueness
+    existing_user = await User.find_one(User.email == body.work_email)
     if existing_user:
         raise HTTPException(
             status_code=400,
             detail="Email already registered.",
         )
 
-    escaped_name = re.escape(body.org_name.strip())
-
+    # Check company name uniqueness (case-insensitive)
+    escaped_name = re.escape(body.company_name.strip())
     existing_company = await Company.find_one(
         {
             "name": {
@@ -140,28 +138,18 @@ async def register_org(request: Request, body: OrgRegisterRequest):
             }
         }
     )
-
     if existing_company:
         raise HTTPException(
             status_code=409,
             detail="Organization name already taken.",
         )
 
+    # Create company with only the 4 basic fields; all verification fields stay None
     company = Company(
-        name=body.org_name.strip(),
+        name=body.company_name.strip(),
         status="pending_verification",
         verification_status="pending",
-        org_type=body.org_type,
-        registration_number=body.registration_number,
-        pan=body.pan,
-        gstin=body.gstin,
-        registered_address=body.registered_address,
-        website=body.website,
-        official_phone=body.official_phone,
-        authorized_person_name=body.authorized_person_name,
-        authorized_person_designation=body.authorized_person_designation,
-        authorized_person_email=body.authorized_person_email,
-        authorized_person_phone=body.authorized_person_phone,
+        official_phone=body.phone_number,
     )
 
     try:
@@ -174,18 +162,16 @@ async def register_org(request: Request, body: OrgRegisterRequest):
 
     try:
         user = User(
-            email=body.manager_email,
+            email=body.work_email,
             password_hash=hash_password(body.password),
-            name=body.manager_name,
+            name=body.company_name.strip(),
             role="company_manager",
             company_id=str(company.id),
+            phone_number=body.phone_number,
         )
-
         await user.insert()
-
     except Exception:
         await company.delete()
-
         raise HTTPException(
             status_code=500,
             detail="Failed to create manager account. Registration rolled back.",
@@ -194,8 +180,119 @@ async def register_org(request: Request, body: OrgRegisterRequest):
     return {
         "company_id": str(company.id),
         "user_id": str(user.id),
-        "message": "Registration submitted; awaiting approval.",
+        "message": "Registration successful. Please complete your verification profile.",
     }
+
+
+@router.get("/profile", response_model=OrgProfileOut)
+async def get_org_profile(current_user: User = Depends(get_current_user)):
+    """Return the authenticated organization's verification profile."""
+    if current_user.role not in ("company_manager", "super_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    company = await Company.get(current_user.company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+
+    return OrgProfileOut(
+        id=str(company.id),
+        name=company.name,
+        status=company.status,
+        verification_status=company.verification_status,
+        rejection_reason=company.rejection_reason,
+        org_type=company.org_type,
+        registration_number=company.registration_number,
+        pan=company.pan,
+        gstin=company.gstin,
+        registered_address=company.registered_address,
+        website=company.website,
+        official_phone=company.official_phone,
+        authorized_person_name=company.authorized_person_name,
+        authorized_person_designation=company.authorized_person_designation,
+        authorized_person_email=company.authorized_person_email,
+        authorized_person_phone=company.authorized_person_phone,
+        subscription_status=company.subscription_status,
+        verified_at=company.verified_at,
+    )
+
+
+@router.patch("/profile", response_model=OrgProfileOut)
+async def update_org_profile(
+    body: OrgProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Submit or update organization verification details. Does not auto-approve."""
+    if current_user.role not in ("company_manager", "super_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    company = await Company.get(current_user.company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+
+    # Only apply fields explicitly provided in the request body
+    update_data = body.model_dump(exclude_unset=True)
+
+    # Safety guard: these fields must never be changed via this endpoint
+    for protected in ("name", "status", "verification_status",
+                      "subscription_plan_id", "subscription_status"):
+        update_data.pop(protected, None)
+
+    if update_data:
+        await company.set(update_data)
+        await company.sync()
+
+    return OrgProfileOut(
+        id=str(company.id),
+        name=company.name,
+        status=company.status,
+        verification_status=company.verification_status,
+        rejection_reason=company.rejection_reason,
+        org_type=company.org_type,
+        registration_number=company.registration_number,
+        pan=company.pan,
+        gstin=company.gstin,
+        registered_address=company.registered_address,
+        website=company.website,
+        official_phone=company.official_phone,
+        authorized_person_name=company.authorized_person_name,
+        authorized_person_designation=company.authorized_person_designation,
+        authorized_person_email=company.authorized_person_email,
+        authorized_person_phone=company.authorized_person_phone,
+        subscription_status=company.subscription_status,
+        verified_at=company.verified_at,
+    )
+
+
+@router.get("/{company_id}/documents", response_model=list[OrgDocumentOut])
+async def list_own_documents(
+    company_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """List document metadata for a company. Super admin can access any; manager only their own."""
+    if current_user.role != "super_admin":
+        if (
+            current_user.role != "company_manager"
+            or str(current_user.company_id) != company_id
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Not authorized to list documents for this company.",
+            )
+
+    docs = await OrgDocument.find({"company_id": company_id}).to_list()
+
+    return [
+        OrgDocumentOut(
+            id=str(d.id),
+            company_id=d.company_id,
+            document_type=d.document_type,
+            file_name=d.file_name,
+            uploaded_at=d.uploaded_at,
+            uploaded_by=d.uploaded_by,
+            verification_status=d.verification_status,
+        )
+        for d in docs
+    ]
 
 
 @router.post(

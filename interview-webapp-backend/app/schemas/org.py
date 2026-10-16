@@ -1,37 +1,75 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Literal
 from datetime import datetime
 from app.schemas.validators import validate_email, validate_password, validate_name, validate_org_name, validate_pan
 
 
 class OrgRegisterRequest(BaseModel):
-    # Existing required fields (keep validators)
-    org_name: str
-    manager_name: str
-    manager_email: str
+    company_name: str
+    work_email: str
     password: str
+    phone_number: str
 
-    # New required fields (GAP 1)
-    org_type: str
-    registered_address: str
-    official_phone: str
-    authorized_person_name: str
-    authorized_person_designation: str
-    authorized_person_email: str
-    authorized_person_phone: str
-
-    # New optional fields (GAP 1)
-    registration_number: Optional[str] = None
-    pan: str
-    gstin: Optional[str] = None
-    website: Optional[str] = None
-
-    _validate_org_name = field_validator("org_name", mode="before")(classmethod(validate_org_name))
-    _validate_manager_name = field_validator("manager_name", mode="before")(classmethod(validate_name))
-    _validate_manager_email = field_validator("manager_email", mode="before")(classmethod(validate_email))
+    _validate_company_name = field_validator("company_name", mode="before")(classmethod(validate_org_name))
+    _validate_work_email = field_validator("work_email", mode="before")(classmethod(validate_email))
     _validate_password = field_validator("password", mode="before")(classmethod(validate_password))
-    _validate_auth_email = field_validator("authorized_person_email", mode="before")(classmethod(validate_email))
-    _validate_pan = field_validator("pan", mode="before")(classmethod(validate_pan))
+
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def _validate_phone(cls, v: str) -> str:
+        if not v or not str(v).strip():
+            raise ValueError("Phone number is required")
+        return str(v).strip()
+
+
+class OrgProfileUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
+    org_type: Optional[str] = None
+    registration_number: Optional[str] = None
+    pan: Optional[str] = None
+    gstin: Optional[str] = None
+    registered_address: Optional[str] = None
+    website: Optional[str] = None
+    authorized_person_name: Optional[str] = None
+    authorized_person_designation: Optional[str] = None
+    authorized_person_email: Optional[str] = None
+    authorized_person_phone: Optional[str] = None
+
+    @field_validator("pan", mode="before")
+    @classmethod
+    def _validate_pan_optional(cls, v):
+        if v is None:
+            return v
+        return validate_pan(cls, v)
+
+    @field_validator("authorized_person_email", mode="before")
+    @classmethod
+    def _validate_auth_email_optional(cls, v):
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return v
+        return validate_email(cls, v)
+
+
+class OrgProfileOut(BaseModel):
+    id: str
+    name: str
+    status: str
+    verification_status: str
+    rejection_reason: Optional[str] = None
+    org_type: Optional[str] = None
+    registration_number: Optional[str] = None
+    pan: Optional[str] = None
+    gstin: Optional[str] = None
+    registered_address: Optional[str] = None
+    website: Optional[str] = None
+    official_phone: Optional[str] = None
+    authorized_person_name: Optional[str] = None
+    authorized_person_designation: Optional[str] = None
+    authorized_person_email: Optional[str] = None
+    authorized_person_phone: Optional[str] = None
+    subscription_status: Optional[str] = None
+    verified_at: Optional[datetime] = None
 
 
 class RejectOrgRequest(BaseModel):

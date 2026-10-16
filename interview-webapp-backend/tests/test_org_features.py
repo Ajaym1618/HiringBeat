@@ -181,18 +181,10 @@ async def test_register_success():
     from app.schemas.org import OrgRegisterRequest
 
     body = OrgRegisterRequest(
-        org_name="Acme Corp",
-        manager_name="Alice",
-        manager_email="alice@acme.com",
+        company_name="Acme Corp",
+        work_email="alice@acme.com",
         password="Secret123",
-        org_type="Private Limited",
-        registered_address="123 Main St, Mumbai",
-        official_phone="+919876543210",
-        authorized_person_name="Alice Smith",
-        authorized_person_designation="Director",
-        authorized_person_email="alice.auth@acme.com",
-        authorized_person_phone="+919876543211",
-        pan="ABCDE1234F",
+        phone_number="+919876543210",
     )
 
     fake_company = FakeCompany(company_id="comp_new", status="pending_verification")
@@ -222,7 +214,7 @@ async def test_register_success():
 
     assert result["company_id"] == "comp_new"
     assert result["user_id"] == "user_new"
-    assert "awaiting approval" in result["message"]
+    assert "Registration successful" in result["message"]
 
 
 @pytest.mark.asyncio
@@ -233,18 +225,10 @@ async def test_register_creates_pending_status():
     from fastapi import Request
 
     body = OrgRegisterRequest(
-        org_name="Pending Corp",
-        manager_name="Bob",
-        manager_email="bob@pending.com",
+        company_name="Pending Corp",
+        work_email="bob@pending.com",
         password="Secret123",
-        org_type="Private Limited",
-        registered_address="456 Elm St, Delhi",
-        official_phone="+919876543212",
-        authorized_person_name="Bob Brown",
-        authorized_person_designation="CEO",
-        authorized_person_email="bob.auth@pending.com",
-        authorized_person_phone="+919876543213",
-        pan="ABCDE1234F",
+        phone_number="+919876543212",
     )
 
     created_companies = []
@@ -295,18 +279,10 @@ async def test_register_creates_company_manager_account():
     from fastapi import Request
 
     body = OrgRegisterRequest(
-        org_name="Manager Corp",
-        manager_name="Carol",
-        manager_email="carol@mgrcorp.com",
+        company_name="Manager Corp",
+        work_email="carol@mgrcorp.com",
         password="Secret123",
-        org_type="LLP",
-        registered_address="789 Oak Ave, Bangalore",
-        official_phone="+919876543214",
-        authorized_person_name="Carol White",
-        authorized_person_designation="Managing Partner",
-        authorized_person_email="carol.auth@mgrcorp.com",
-        authorized_person_phone="+919876543215",
-        pan="ABCDE1234F",
+        phone_number="+919876543214",
     )
 
     fake_company = FakeCompany(company_id="comp_mgr", status="pending_verification")
@@ -344,6 +320,8 @@ async def test_register_creates_company_manager_account():
 
     assert len(created_users) == 1
     assert created_users[0].role == "company_manager"
+    assert created_users[0].name == "Manager Corp"
+    assert created_users[0].phone_number == "+919876543214"
 
 
 # ---------------------------------------------------------------------------
@@ -357,18 +335,10 @@ async def test_register_duplicate_email_returns_400():
     from fastapi import HTTPException, Request
 
     body = OrgRegisterRequest(
-        org_name="New Corp",
-        manager_name="Dave",
-        manager_email="dave@existing.com",
+        company_name="New Corp",
+        work_email="dave@existing.com",
         password="Secret123",
-        org_type="Private Limited",
-        registered_address="101 Pine Rd, Chennai",
-        official_phone="+919876543216",
-        authorized_person_name="Dave Johnson",
-        authorized_person_designation="Director",
-        authorized_person_email="dave.auth@existing.com",
-        authorized_person_phone="+919876543217",
-        pan="ABCDE1234F",
+        phone_number="+919876543216",
     )
     existing = FakeUser(email="dave@existing.com")
 
@@ -391,18 +361,10 @@ async def test_register_duplicate_org_name_returns_409():
     from fastapi import HTTPException, Request
 
     body = OrgRegisterRequest(
-        org_name="Existing Corp",
-        manager_name="Eve",
-        manager_email="eve@newcorp.com",
+        company_name="Existing Corp",
+        work_email="eve@newcorp.com",
         password="Secret123",
-        org_type="Public Limited",
-        registered_address="202 Maple St, Hyderabad",
-        official_phone="+919876543218",
-        authorized_person_name="Eve Davis",
-        authorized_person_designation="CFO",
-        authorized_person_email="eve.auth@newcorp.com",
-        authorized_person_phone="+919876543219",
-        pan="ABCDE1234F",
+        phone_number="+919876543218",
     )
     existing_company = FakeCompany(name="Existing Corp")
 
@@ -426,18 +388,10 @@ async def test_register_missing_required_field_returns_422():
 
     with pytest.raises(ValidationError):
         OrgRegisterRequest(
-            # org_name missing
-            manager_name="Frank",
-            manager_email="frank@corp.com",
+            # company_name missing
+            work_email="frank@corp.com",
             password="Secret123",
-            org_type="Private Limited",
-            registered_address="505 Ash St, Ahmedabad",
-            official_phone="+919876543224",
-            authorized_person_name="Frank Lee",
-            authorized_person_designation="Director",
-            authorized_person_email="frank.auth@corp.com",
-            authorized_person_phone="+919876543225",
-            pan="ABCDE1234F",
+            phone_number="+919876543224",
         )
 
 
@@ -453,18 +407,10 @@ async def test_register_company_insert_failure_returns_500():
     from fastapi import HTTPException, Request
 
     body = OrgRegisterRequest(
-        org_name="FailCorp",
-        manager_name="Greta",
-        manager_email="greta@fail.com",
+        company_name="FailCorp",
+        work_email="greta@fail.com",
         password="Secret123",
-        org_type="Partnership",
-        registered_address="303 Cedar Ln, Pune",
-        official_phone="+919876543220",
-        authorized_person_name="Greta Miller",
-        authorized_person_designation="Partner",
-        authorized_person_email="greta.auth@fail.com",
-        authorized_person_phone="+919876543221",
-        pan="ABCDE1234F",
+        phone_number="+919876543220",
     )
 
     fake_company = MagicMock()
@@ -499,18 +445,10 @@ async def test_register_user_insert_failure_rolls_back_company():
     from fastapi import HTTPException, Request
 
     body = OrgRegisterRequest(
-        org_name="RollbackCorp",
-        manager_name="Hank",
-        manager_email="hank@rollback.com",
+        company_name="RollbackCorp",
+        work_email="hank@rollback.com",
         password="Secret123",
-        org_type="Private Limited",
-        registered_address="404 Birch Blvd, Kolkata",
-        official_phone="+919876543222",
-        authorized_person_name="Hank Wilson",
-        authorized_person_designation="Director",
-        authorized_person_email="hank.auth@rollback.com",
-        authorized_person_phone="+919876543223",
-        pan="ABCDE1234F",
+        phone_number="+919876543222",
     )
 
     fake_company = MagicMock()
@@ -1147,51 +1085,30 @@ async def test_admin_companies_returns_all_statuses():
 # ---------------------------------------------------------------------------
 
 def test_register_with_full_fields():
-    """OrgRegisterRequest must accept all new required and optional fields without error."""
+    """OrgRegisterRequest must accept the new 4-field form without error."""
     from app.schemas.org import OrgRegisterRequest
 
     body = OrgRegisterRequest(
-        org_name="Full Corp",
-        manager_name="Alice",
-        manager_email="alice@full.com",
+        company_name="Full Corp",
+        work_email="alice@full.com",
         password="Secret123",
-        org_type="Private Limited",
-        registration_number="U12345MH2020PTC123456",
-        pan="ABCDE1234F",
-        gstin="27ABCDE1234F1Z5",
-        registered_address="123 Main St, Mumbai",
-        website="https://fullcorp.com",
-        official_phone="+919876543210",
-        authorized_person_name="Bob Smith",
-        authorized_person_designation="Director",
-        authorized_person_email="bob@full.com",
-        authorized_person_phone="+919876543211",
+        phone_number="+919876543210",
     )
-    # Should not raise ValidationError
-    assert body.org_name == "Full Corp"
-    assert body.org_type == "Private Limited"
-    assert body.pan == "ABCDE1234F"
-    assert body.authorized_person_name == "Bob Smith"
+    assert body.company_name == "Full Corp"
+    assert body.work_email == "alice@full.com"
 
 
-def test_register_missing_org_type_raises_validation_error():
-    """org_type is required — omitting it must raise ValidationError."""
+def test_register_missing_company_name_raises_validation_error():
+    """company_name is required — omitting it must raise ValidationError."""
     from app.schemas.org import OrgRegisterRequest
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
         OrgRegisterRequest(
-            org_name="TypelessCorp",
-            manager_name="Alice",
-            manager_email="alice@typeless.com",
+            work_email="alice@typeless.com",
             password="Secret123",
-            # org_type missing
-            registered_address="123 Main St",
-            official_phone="+919876543210",
-            authorized_person_name="Alice",
-            authorized_person_designation="Director",
-            authorized_person_email="alice.auth@typeless.com",
-            authorized_person_phone="+919876543211",
+            phone_number="+919876543210",
+            # company_name missing
         )
 
 
@@ -2015,83 +1932,28 @@ def test_validate_file_strict_rejects_pdf_content_with_jpeg_extension():
 # ---------------------------------------------------------------------------
 
 def test_pan_validation_valid():
-    from app.schemas.org import OrgRegisterRequest
-    from pydantic import ValidationError
-    req = OrgRegisterRequest(
-        org_name="Test Org",
-        manager_name="Test Manager",
-        manager_email="mgr@test.com",
-        password="Secret123",
-        org_type="Private Limited",
-        registered_address="123 Main St",
-        official_phone="9999999999",
-        authorized_person_name="Auth Person",
-        authorized_person_designation="Director",
-        authorized_person_email="auth@test.com",
-        authorized_person_phone="8888888888",
-        pan="ABCDE1234F",
-    )
-    assert req.pan == "ABCDE1234F"
+    from app.schemas.validators import validate_pan
+    result = validate_pan(None, "ABCDE1234F")
+    assert result == "ABCDE1234F"
 
 
 def test_pan_validation_invalid():
-    from app.schemas.org import OrgRegisterRequest
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        OrgRegisterRequest(
-            org_name="Test Org",
-            manager_name="Test Manager",
-            manager_email="mgr@test.com",
-            password="Secret123",
-            org_type="Private Limited",
-            registered_address="123 Main St",
-            official_phone="9999999999",
-            authorized_person_name="Auth Person",
-            authorized_person_designation="Director",
-            authorized_person_email="auth@test.com",
-            authorized_person_phone="8888888888",
-            pan="INVALID",
-        )
+    from app.schemas.validators import validate_pan
+    with pytest.raises(ValueError):
+        validate_pan(None, "INVALID")
 
 
 def test_pan_required():
-    """PAN is required -- missing pan raises ValidationError."""
-    from app.schemas.org import OrgRegisterRequest
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        OrgRegisterRequest(
-            org_name="Test Org",
-            manager_name="Test Manager",
-            manager_email="mgr@test.com",
-            password="Secret123",
-            org_type="Private Limited",
-            registered_address="123 Main St",
-            official_phone="9999999999",
-            authorized_person_name="Auth Person",
-            authorized_person_designation="Director",
-            authorized_person_email="auth@test.com",
-            authorized_person_phone="8888888888",
-            # pan missing
-        )
+    """PAN is optional in OrgProfileUpdateRequest — OrgRegisterRequest no longer requires it."""
+    from app.schemas.validators import validate_pan
+    with pytest.raises(ValueError):
+        validate_pan(None, "")
 
 
 def test_pan_lowercase_normalized():
     """PAN with lowercase letters must be normalized to uppercase and validated."""
-    from app.schemas.org import OrgRegisterRequest
-    req = OrgRegisterRequest(
-        org_name="Test Org",
-        manager_name="Test Manager",
-        manager_email="mgr2@test.com",
-        password="Secret123",
-        org_type="Private Limited",
-        registered_address="123 Main St",
-        official_phone="9999999999",
-        authorized_person_name="Auth Person",
-        authorized_person_designation="Director",
-        authorized_person_email="auth2@test.com",
-        authorized_person_phone="8888888888",
-        pan="abcde1234f",
-    )
+    from app.schemas.org import OrgProfileUpdateRequest
+    req = OrgProfileUpdateRequest(pan="abcde1234f")
     assert req.pan == "ABCDE1234F"
 
 
@@ -2251,126 +2113,46 @@ def test_validate_file_strict_accepts_jpeg_with_jpeg_extension():
 # ---------------------------------------------------------------------------
 
 def test_pan_required_field_missing_raises_422():
-    """Missing PAN must raise ValidationError (required field)."""
-    from app.schemas.org import OrgRegisterRequest
+    """PAN is optional in OrgProfileUpdateRequest — but invalid format still raises ValidationError."""
+    from app.schemas.org import OrgProfileUpdateRequest
     from pydantic import ValidationError
     with pytest.raises(ValidationError):
-        OrgRegisterRequest(
-            org_name="Test Corp",
-            manager_name="Test Manager",
-            manager_email="mgr@test.com",
-            password="Secret123",
-            org_type="Private Limited",
-            registered_address="123 Main St",
-            official_phone="9999999999",
-            authorized_person_name="Auth Person",
-            authorized_person_designation="Director",
-            authorized_person_email="auth@test.com",
-            authorized_person_phone="8888888888",
-            # pan is missing
-        )
+        OrgProfileUpdateRequest(pan="INVALID")
 
 
 def test_pan_invalid_format_raises_422():
     """Invalid PAN format must raise ValidationError."""
-    from app.schemas.org import OrgRegisterRequest
+    from app.schemas.org import OrgProfileUpdateRequest
     from pydantic import ValidationError
     with pytest.raises(ValidationError):
-        OrgRegisterRequest(
-            org_name="Test Corp",
-            manager_name="Test Manager",
-            manager_email="mgr@test.com",
-            password="Secret123",
-            org_type="Private Limited",
-            registered_address="123 Main St",
-            official_phone="9999999999",
-            authorized_person_name="Auth Person",
-            authorized_person_designation="Director",
-            authorized_person_email="auth@test.com",
-            authorized_person_phone="8888888888",
-            pan="INVALID123",
-        )
+        OrgProfileUpdateRequest(pan="INVALID123")
 
 
 def test_pan_valid_format_accepted():
     """Valid PAN format ABCDE1234F must be accepted."""
-    from app.schemas.org import OrgRegisterRequest
-    req = OrgRegisterRequest(
-        org_name="Valid Corp",
-        manager_name="Test Manager",
-        manager_email="mgr@test.com",
-        password="Secret123",
-        org_type="Private Limited",
-        registered_address="123 Main St",
-        official_phone="9999999999",
-        authorized_person_name="Auth Person",
-        authorized_person_designation="Director",
-        authorized_person_email="auth@test.com",
-        authorized_person_phone="8888888888",
-        pan="ABCDE1234F",
-    )
+    from app.schemas.org import OrgProfileUpdateRequest
+    req = OrgProfileUpdateRequest(pan="ABCDE1234F")
     assert req.pan == "ABCDE1234F"
 
 
 def test_pan_lowercase_normalized_to_uppercase():
     """Lowercase PAN must be normalized to uppercase."""
-    from app.schemas.org import OrgRegisterRequest
-    req = OrgRegisterRequest(
-        org_name="Lower Corp",
-        manager_name="Test Manager",
-        manager_email="mgr@test.com",
-        password="Secret123",
-        org_type="Private Limited",
-        registered_address="123 Main St",
-        official_phone="9999999999",
-        authorized_person_name="Auth Person",
-        authorized_person_designation="Director",
-        authorized_person_email="auth@test.com",
-        authorized_person_phone="8888888888",
-        pan="abcde1234f",
-    )
+    from app.schemas.org import OrgProfileUpdateRequest
+    req = OrgProfileUpdateRequest(pan="abcde1234f")
     assert req.pan == "ABCDE1234F"
 
 
 def test_gstin_optional():
-    """GSTIN is optional — registration must succeed without it."""
-    from app.schemas.org import OrgRegisterRequest
-    req = OrgRegisterRequest(
-        org_name="No GST Corp",
-        manager_name="Test Manager",
-        manager_email="mgr@test.com",
-        password="Secret123",
-        org_type="Private Limited",
-        registered_address="123 Main St",
-        official_phone="9999999999",
-        authorized_person_name="Auth Person",
-        authorized_person_designation="Director",
-        authorized_person_email="auth@test.com",
-        authorized_person_phone="8888888888",
-        pan="ABCDE1234F",
-        # gstin not provided
-    )
+    """GSTIN is optional in OrgProfileUpdateRequest — omitting it gives gstin=None."""
+    from app.schemas.org import OrgProfileUpdateRequest
+    req = OrgProfileUpdateRequest()
     assert req.gstin is None
 
 
 def test_registration_number_optional():
-    """Registration number is optional — registration must succeed without it."""
-    from app.schemas.org import OrgRegisterRequest
-    req = OrgRegisterRequest(
-        org_name="No Reg Corp",
-        manager_name="Test Manager",
-        manager_email="mgr@test.com",
-        password="Secret123",
-        org_type="Private Limited",
-        registered_address="123 Main St",
-        official_phone="9999999999",
-        authorized_person_name="Auth Person",
-        authorized_person_designation="Director",
-        authorized_person_email="auth@test.com",
-        authorized_person_phone="8888888888",
-        pan="ABCDE1234F",
-        # registration_number not provided
-    )
+    """Registration number is optional in OrgProfileUpdateRequest — omitting it gives None."""
+    from app.schemas.org import OrgProfileUpdateRequest
+    req = OrgProfileUpdateRequest()
     assert req.registration_number is None
 
 
@@ -2512,3 +2294,153 @@ async def test_inactive_company_rejected():
         await check_org_approved(company)
 
     assert exc.value.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS — Task 1: Separate Org Registration and Verification APIs
+# ---------------------------------------------------------------------------
+
+def test_register_with_four_fields_succeeds():
+    """OrgRegisterRequest must accept exactly the 4 required fields."""
+    from app.schemas.org import OrgRegisterRequest
+    body = OrgRegisterRequest(
+        company_name="Four Fields Corp",
+        work_email="mgr@fourfields.com",
+        password="Secret123",
+        phone_number="+919876543210",
+    )
+    assert body.company_name == "Four Fields Corp"
+    assert body.work_email == "mgr@fourfields.com"
+
+
+def test_register_missing_company_name_returns_422():
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(work_email="e@x.com", password="Secret123", phone_number="123")
+
+
+def test_register_missing_work_email_returns_422():
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(company_name="Corp", password="Secret123", phone_number="123")
+
+
+def test_register_missing_password_returns_422():
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(company_name="Corp", work_email="e@x.com", phone_number="123")
+
+
+def test_register_missing_phone_returns_422():
+    from app.schemas.org import OrgRegisterRequest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        OrgRegisterRequest(company_name="Corp", work_email="e@x.com", password="Secret123")
+
+
+@pytest.mark.asyncio
+async def test_get_org_profile_authenticated_returns_profile():
+    from app.routes.org import get_org_profile
+    mgr_user = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+    company = FakeCompany(company_id="comp1", name="Profile Corp", verification_status="pending")
+    with patch("app.routes.org.Company.get", new_callable=AsyncMock, return_value=company):
+        result = await get_org_profile(current_user=mgr_user)
+    assert result.id == "comp1"
+    assert result.name == "Profile Corp"
+    assert result.verification_status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_get_org_profile_wrong_role_returns_403():
+    from app.routes.org import get_org_profile
+    from fastapi import HTTPException
+    recruiter = FakeUser(user_id="rec1", role="recruiter", company_id="comp1")
+    with pytest.raises(HTTPException) as exc_info:
+        await get_org_profile(current_user=recruiter)
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_update_org_profile_stores_verification_details():
+    from app.routes.org import update_org_profile
+    from app.schemas.org import OrgProfileUpdateRequest
+    mgr_user = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+    company = FakeCompany(company_id="comp1")
+    company.set = AsyncMock(side_effect=company.set)
+    company.sync = AsyncMock()
+    body = OrgProfileUpdateRequest(org_type="Private Limited", registered_address="123 Main St")
+    with patch("app.routes.org.Company.get", new_callable=AsyncMock, return_value=company):
+        result = await update_org_profile(body=body, current_user=mgr_user)
+    company.set.assert_called_once()
+    called_data = company.set.call_args[0][0]
+    assert called_data.get("org_type") == "Private Limited"
+    assert called_data.get("registered_address") == "123 Main St"
+
+
+@pytest.mark.asyncio
+async def test_update_org_profile_does_not_change_verification_status():
+    from app.routes.org import update_org_profile
+    from app.schemas.org import OrgProfileUpdateRequest
+    mgr_user = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+    company = FakeCompany(company_id="comp1", verification_status="pending")
+    company.set = AsyncMock()
+    company.sync = AsyncMock()
+    # OrgProfileUpdateRequest does not have verification_status field, so it cannot be passed
+    body = OrgProfileUpdateRequest(org_type="LLP")
+    with patch("app.routes.org.Company.get", new_callable=AsyncMock, return_value=company):
+        result = await update_org_profile(body=body, current_user=mgr_user)
+    # Verify company.set was NOT called with verification_status
+    if company.set.called:
+        called_data = company.set.call_args[0][0]
+        assert "verification_status" not in called_data
+    assert result.verification_status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_update_org_profile_cross_company_rejected():
+    """A company_manager's update_org_profile fetches THEIR OWN company from JWT.
+    Test that a recruiter (wrong role) cannot call this endpoint."""
+    from app.routes.org import update_org_profile
+    from app.schemas.org import OrgProfileUpdateRequest
+    from fastapi import HTTPException
+    recruiter = FakeUser(user_id="rec1", role="recruiter", company_id="compA")
+    body = OrgProfileUpdateRequest(org_type="Private Limited")
+    with pytest.raises(HTTPException) as exc_info:
+        await update_org_profile(body=body, current_user=recruiter)
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_own_documents_returns_docs():
+    from app.routes.org import list_own_documents
+    from app.models.org_document import OrgDocument as OrgDocModel
+    mgr_user = FakeUser(user_id="mgr1", role="company_manager", company_id="comp1")
+
+    class FakeDoc:
+        def __init__(self):
+            self.id = "doc1"
+            self.company_id = "comp1"
+            self.document_type = "pan_document"
+            self.file_name = "pan.pdf"
+            self.uploaded_at = _utc_now()
+            self.uploaded_by = "mgr1"
+            self.verification_status = "pending"
+
+    qm = _make_query_mock(results=[FakeDoc()])
+    with patch.object(OrgDocModel, "find", return_value=qm, create=True):
+        result = await list_own_documents(company_id="comp1", current_user=mgr_user)
+    assert len(result) == 1
+    assert result[0].document_type == "pan_document"
+
+
+@pytest.mark.asyncio
+async def test_list_own_documents_cross_company_rejected():
+    from app.routes.org import list_own_documents
+    from fastapi import HTTPException
+    mgr_user = FakeUser(user_id="mgr1", role="company_manager", company_id="compA")
+    with pytest.raises(HTTPException) as exc_info:
+        await list_own_documents(company_id="compB", current_user=mgr_user)
+    assert exc_info.value.status_code == 403
