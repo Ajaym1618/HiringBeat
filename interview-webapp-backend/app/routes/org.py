@@ -190,6 +190,9 @@ async def get_org_profile(current_user: User = Depends(get_current_user)):
     if current_user.role not in ("company_manager", "super_admin"):
         raise HTTPException(status_code=403, detail="Not authorized.")
 
+    if current_user.company_id is None:
+        raise HTTPException(status_code=400, detail="Super admins do not have an organization profile.")
+
     company = await Company.get(current_user.company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Organization not found.")
@@ -224,6 +227,9 @@ async def update_org_profile(
     """Submit or update organization verification details. Does not auto-approve."""
     if current_user.role not in ("company_manager", "super_admin"):
         raise HTTPException(status_code=403, detail="Not authorized.")
+
+    if current_user.company_id is None:
+        raise HTTPException(status_code=400, detail="Super admins do not have an organization profile.")
 
     company = await Company.get(current_user.company_id)
     if not company:

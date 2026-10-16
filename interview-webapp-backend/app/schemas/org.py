@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Literal
 from datetime import datetime
+import re
 from app.schemas.validators import validate_email, validate_password, validate_name, validate_org_name, validate_pan
 
 
@@ -19,7 +20,11 @@ class OrgRegisterRequest(BaseModel):
     def _validate_phone(cls, v: str) -> str:
         if not v or not str(v).strip():
             raise ValueError("Phone number is required")
-        return str(v).strip()
+        stripped = str(v).strip()
+        # Accept E.164 and common local formats: optional +, then 7–15 digits/spaces/hyphens/parens
+        if not re.match(r"^\+?[0-9][0-9\s\-\(\)]{5,18}[0-9]$", stripped):
+            raise ValueError("Invalid phone number format. Use E.164 (e.g. +919876543210) or a local number with 7-15 digits.")
+        return stripped
 
 
 class OrgProfileUpdateRequest(BaseModel):
@@ -49,6 +54,16 @@ class OrgProfileUpdateRequest(BaseModel):
         if v is None or (isinstance(v, str) and not v.strip()):
             return v
         return validate_email(cls, v)
+
+    @field_validator("authorized_person_phone", mode="before")
+    @classmethod
+    def _validate_auth_phone_optional(cls, v):
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return v
+        stripped = str(v).strip()
+        if not re.match(r"^\+?[0-9][0-9\s\-\(\)]{5,18}[0-9]$", stripped):
+            raise ValueError("Invalid phone number format.")
+        return stripped
 
 
 class OrgProfileOut(BaseModel):
